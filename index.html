@@ -25,7 +25,7 @@ header .brand{font-weight:700;font-size:17px;white-space:nowrap;color:inherit;te
 .wrap{display:flex;min-height:calc(100vh - 50px)}
 #side{width:232px;flex:none;background:var(--card);border-right:1px solid var(--line);padding:14px 10px;position:sticky;top:50px;height:calc(100vh - 50px);overflow:auto}
 #nav a{display:flex;gap:10px;align-items:center;padding:9px 12px;border-radius:10px;color:var(--ink);text-decoration:none;font-weight:700;font-size:15px;border-left:4px solid transparent}
-#nav a:hover{background:var(--bg)}#nav a.on{background:color-mix(in srgb,var(--acc) 12%,transparent);color:var(--acc);border-left-color:var(--acc);border-radius:4px 10px 10px 4px}.ic{width:20px;text-align:center}
+#nav a:hover{background:var(--bg)}#nav a.salir{margin-top:18px;border-top:1px solid var(--line);border-radius:0;padding-top:14px;color:var(--mute);font-weight:600}#nav a.on{background:color-mix(in srgb,var(--acc) 12%,transparent);color:var(--acc);border-left-color:var(--acc);border-radius:4px 10px 10px 4px}.ic{width:20px;text-align:center}
 main{flex:1;min-width:0;padding:24px 28px 70px}#app{max-width:1400px}
 .vhead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}.vhead h1{font-size:30px;line-height:1.15}.sub{color:var(--mute);margin:4px 0 0}.vacts{display:flex;gap:6px;flex-wrap:wrap}
 .btn{font:inherit;font-weight:700;font-size:15px;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;white-space:nowrap}
@@ -595,6 +595,8 @@ function formModal({ title, fields, values = {}, submit = 'Guardar', onSubmit, o
   };
   fields.filter(f => f.t === 'lines').forEach(f => drawLines(f.k));
   form.addEventListener('redraw', e => drawLines(e.detail));
+  /* Rellenar desde fuera (p. ej. lo leído de una etiqueta): usa la primera línea vacía o añade una */
+  form.addEventListener('rellenar', e => { const { k, row, values: vs = {} } = e.detail || {}; read(); Object.entries(vs).forEach(([c, x]) => { vals[c] = x; const el = form.querySelector(`[data-k="${c}"]`); if (el) el.value = x; }); if (k) { const f = fields.find(x => x.k === k); const arr = vals[k]; const i = arr.findIndex(r => !r[f.cols[0].k] && !f.cols.some(c => c.t !== 'select' && c.t !== 'calc' && r[c.k])); if (i >= 0) Object.assign(arr[i], row); else arr.push({ ...row }); drawLines(k); } refresh(k || Object.keys(vs)[0]); });
   let enCambio = false;
   form.addEventListener('change', e => {
     if (enCambio || !document.body.contains(e.target) || !form.contains(e.target)) return;
@@ -1877,11 +1879,12 @@ function loteProvLeido(row, c) {
 }
 ACT.nuevaCompra = (_id, pre) => {
   formModal({
-    title: 'Entrada de lotes (fermentos, cuajo, sal, envases…)', intro: `<p class="sub">Cuando llega un pedido (p. ej. de Arroyo), apunta cada producto con el <b>lote</b> que trae, su caducidad y cuántos han llegado (p. ej. 50 sobres). Al fabricar, la app elige este lote y calcula cuántos sobres echar.</p><div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px"><button type="button" class="btn" data-nuevo="prov">+ Proveedor que no está en la lista</button><button type="button" class="btn" data-nuevo="mat">+ Ingrediente que no está en la lista</button></div>`, values: { fecha: hoy(), proveedorId: pre?.proveedorId || '', lineas: pre?.lineas || [{}] },
+    title: 'Entrada de lotes (fermentos, cuajo, sal, envases…)', intro: `<p class="sub">Cuando llega un pedido (p. ej. de Arroyo), apunta cada producto con el <b>lote</b> que trae, su caducidad y cuántos han llegado (p. ej. 50 sobres). Al fabricar, la app elige este lote y calcula cuántos sobres echar.</p><div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px"><button type="button" class="btn primary" data-etiqueta>📷 Leer etiqueta sin código</button><button type="button" class="btn" data-nuevo="prov">+ Proveedor que no está en la lista</button><button type="button" class="btn" data-nuevo="mat">+ Ingrediente que no está en la lista</button></div>`, values: { fecha: hoy(), proveedorId: pre?.proveedorId || '', lineas: pre?.lineas || [{}] },
     onInput(v, form) {
       if (form.dataset.wired) return; form.dataset.wired = 1;
       const dlg = form.closest('.modal') || form.parentElement;
       const esperar = async (col, id) => { for (let i = 0; i < 40 && !D[col].has(id); i++) await sleep(50); };
+      dlg.querySelector('[data-etiqueta]')?.addEventListener('click', () => etiquetaACompra(form));
       dlg.querySelector('[data-nuevo=prov]')?.addEventListener('click', () => ACT.editProveedor(null, async (pid, pv) => {
         await esperar('proveedores', pid); const sel = form.querySelector('[data-k=proveedorId]');
         if (sel && !(pv.tipos || []).every(x => x === 'leche')) { if (![...sel.options].some(o => o.value === pid)) sel.add(new Option(pv.nombre, pid)); sel.value = pid; sel.dispatchEvent(new Event('change', { bubbles: true })); }
@@ -2436,6 +2439,7 @@ async function escanearFoto(file) {
 }
 
 /* ===================== ARMAZÓN Y ARRANQUE ===================== */
+ACT.salirConfirmar = async () => { if (await confirmar('¿Salir de la app? Para volver a entrar tendrás que poner tu correo y contraseña.', 'Salir')) window.salirApp && salirApp(); };
 function render() {
   const app = $('#app'); if (!app) return;
   if (!S.db) { app.innerHTML = `<div class="center"><h2>${S.err ? 'Sin acceso a los datos' : 'Conectando…'}</h2><p>${esc(S.err || 'Abriendo la base de datos de la quesería.')}</p></div>`; return; }
@@ -2445,7 +2449,7 @@ function render() {
   const v = VIEWS[route] || VIEWS.inicio; const mod = v.mod || (VIEWS[route] ? route : 'inicio');
   $('#nav').innerHTML = MODULOS.filter(([k]) => S.rol && puede(k)).map(([k, l, i]) => `<a href="#${k}" class="${k === mod ? 'on' : ''}"><span class="ic">${i}</span>${esc(l)}</a>`).join('');
   $('#who').textContent = S.me?.name ? `${S.me.name} · ${ROLES[S.rol] || 'sin perfil'}` : (ROLES[S.rol] || '');
-  if (window.__PROPIA && S.me && !$('#salirBtn')) $('#who').insertAdjacentHTML('afterend', '<button id="salirBtn" class="scanbtn" title="Salir" onclick="salirApp()">Salir</button>');
+  if (window.__PROPIA && S.me) $('#nav').insertAdjacentHTML('beforeend', '<a href="#" id="salirBtn" class="salir" data-act="salirConfirmar"><span class="ic">🚪</span>Salir de la app</a>');
   CHARTS.splice(0).forEach(c => c.destroy());
   let html;
   const cargando = S.loaded.size < COLS.length;
@@ -4067,8 +4071,9 @@ Para que encaje, cada cliente necesita su **código de FactuSol** (en su ficha) 
 Funciona con un lector USB o Bluetooth (de los que «escriben» el código). Pásalo con el cursor en el buscador o en cualquier casilla con el icono de barras.
 Lee las etiquetas de lote de la app, las de la báscula y los códigos de los proveedores (cuajo, fermentos…), también DataMatrix.
 Con el móvil se puede hacer una foto del código, pero la cámara en directo no funciona dentro de claude.ai: para el día a día es mejor un lector 2D.` },
-  { id: 'compras', t: 'Ingredientes y envases (entradas de lotes)', p: ['ingrediente', 'cuajo', 'fermento', 'envase', 'proveedor', 'compra', 'garrafa', 'litros'], x: `
+  { id: 'compras', t: 'Ingredientes y envases (entradas de lotes)', p: ['ingrediente', 'cuajo', 'fermento', 'envase', 'proveedor', 'compra', 'garrafa', 'litros', 'etiqueta', 'foto', 'leer', 'texto', 'lote', 'caducidad'], x: `
 En **Proveedores y lotes → 📦 Entrada de ingredientes** apuntas lo que llega con su lote de proveedor y caducidad. Si escaneas la etiqueta, la app rellena el lote y aprende el código del producto para la próxima vez.
+**Productos sin código de barras** (cuajo, cloruro cálcico, ácido láctico…): pulsa **📷 Leer etiqueta sin código** y haz una foto a la etiqueta. La app lee el texto y saca el ingrediente, el lote, la caducidad y el tamaño (5 l, 25 l…). Antes de añadirlo te lo enseña para que lo revises y corrijas. Cada vez que lo confirmas aprende cómo se llama ese producto en su etiqueta. Foto de cerca, recta y con luz; la primera vez tarda un poco más porque prepara el lector.
 Al dar entrada eliges en qué viene: por ejemplo el cuajo y el cloruro cálcico llegan en **garrafas de 5 l**, pero se gastan en ml (= cc). Puedes apuntar 3 garrafas o 15 litros: la app lo pasa sola a ml. Si un producto llega en otro tamaño de garrafa (5 l o 25 l), elígelo en la columna «En».
 Al fabricar se descuentan de estos lotes, así queda la trazabilidad de cada ingrediente. La sal y el ácido láctico se descuentan en las salmueras.` },
   { id: 'inventario', t: 'Inventario de ingredientes y envases (proveedores)', p: ['inventario', 'contar', 'cuadrar', 'proveedor', 'existencias', 'diferencia'], x: `
@@ -4091,11 +4096,12 @@ En **Clientes** está cada cliente con su persona de contacto, teléfono, códig
 Para crear uno: **+ Nuevo cliente**, o escribe su nombre directamente al añadirlo en pedidos.` },
   { id: 'config', t: 'Configuración', p: ['configuración', 'cubas', 'productos', 'formatos', 'usuarios', 'permisos', 'tanques', 'operarios'], x: `
 Solo administradores. Aquí se configuran: empresa, **productos** (formatos, peso medio, días de maduración, código de FactuSol), **cubas** (número 1–9; para sustituir una cuba, desactiva la vieja y crea la nueva con el mismo número), tanques, cámaras y ubicaciones, ingredientes, operarios, usuarios y permisos, importaciones y copias.` },
-  { id: 'permisos', t: 'Quién ve qué', p: ['permiso', 'quién ve', 'precio', 'observaciones', 'restringido', 'josé'], x: `
+  { id: 'permisos', t: 'Quién ve qué', p: ['permiso', 'quién ve', 'precio', 'observaciones', 'restringido', 'josé', 'salir', 'cerrar sesión', 'cambiar de usuario'], x: `
 - Los **precios de la leche** y las liquidaciones solo los ven los administradores. Los demás sí apuntan los litros.
 - Las **observaciones** de fabricación y de recepción solo las ven José y los administradores.
 - **Corregir fabricaciones** solo pueden José y los administradores.
-- Cada perfil ve los apartados del menú que le corresponden.` },
+- Cada perfil ve los apartados del menú que le corresponden.
+- Para **salir de la app** (cambiar de usuario), abre el menú y pulsa **🚪 Salir de la app**, al final de la lista. Pide confirmación para no salir sin querer.` },
 ];
 const AY = { q: '', hist: [], busy: false };
 const manualTexto = () => MANUAL.map(s => `## ${s.t}\n${s.x.trim()}`).join('\n\n');
@@ -4418,6 +4424,139 @@ function afinadoLoteHtml(id) {
   const l = D.lotes.get(id); if (!esAfinado(l)) return ''; const a = l.afinado;
   return card('🧀 Queso comprado para afinar', `<p>Proveedor <b>${esc(D.proveedores.get(a.proveedorId)?.nombre || '—')}</b> · lote del proveedor <b>${esc(a.loteProv || '—')}</b>${a.fabProv ? ` · fabricado ${F.d(a.fabProv)}` : ''}</p><p>Entró el ${F.d(a.entrada.fecha)}: ${F.n(a.entrada.piezas)} quesos · ${F.kg(a.entrada.kg)}</p>` +
     ((a.salidas || []).length ? `<table class="tbl"><thead><tr><th>Pasó a frío</th><th class="num">Quesos</th><th class="num">Kg al entrar</th><th class="num">Kg al salir</th><th class="num">Merma</th><th class="num">Días</th></tr></thead><tbody>${a.salidas.map(s => `<tr><td>${F.d(s.fecha)}</td><td class="num">${F.n(s.piezas)}</td><td class="num">${F.n(s.kgAntes, 2)}</td><td class="num">${F.n(s.kgSalida, 2)}</td><td class="num"><b>${F.n(s.merma, 2)} kg · ${F.n(s.pct, 1)} %</b></td><td class="num">${s.dias}</td></tr>`).join('')}</tbody></table>` : `<p class="sub">Aún en maduración. ${btn('salidaAfinado', '⚖ Pesar y pasar a frío', 'sm primary', id)}</p>`));
+}
+
+/* ===================== LEER LA ETIQUETA (SIN CÓDIGO DE BARRAS) =====================
+   Para el cuajo, el cloruro cálcico, el ácido láctico… que no traen código.
+   Se hace una foto a la etiqueta, el móvil lee el texto (Tesseract, gratis y sin servidor)
+   y la app saca el ingrediente, el proveedor, el lote, la caducidad y el tamaño del envase.
+   Siempre se enseña lo leído para revisarlo antes de ponerlo en la entrada. */
+const OCR_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+const MESES_ET = { ENE: 1, JAN: 1, FEB: 2, MAR: 3, ABR: 4, APR: 4, MAY: 5, JUN: 6, JUL: 7, AGO: 8, AUG: 8, SEP: 9, SET: 9, OCT: 10, NOV: 11, DIC: 12, DEC: 12 };
+/* Otros nombres con los que salen los ingredientes en las etiquetas */
+const SIN_ET = { cuajo: ['RENNET', 'QUIMOSINA', 'CHYMOSIN', 'CHY', 'CAGLIO', 'PRESURE'], cloruro: ['CALCIUM CHLORIDE', 'CACL2', 'CLORURO DE CALCIO', 'CALCIO'], calcico: ['CALCIUM', 'CALCIO', 'CACL2'], lactico: ['LACTIC', 'E270', 'E-270'], acido: ['ACID', 'ACIDO'], sal: ['SALT', 'NACL', 'SODIUM CHLORIDE', 'CLORURO SODICO', 'CLORURO DE SODIO'], fermento: ['CULTURE', 'CULTIVO', 'STARTER', 'FERMENT'] };
+const PAL_COMUNES = new Set('LOTE LOT BATCH CADUCIDAD CONSUMIR PREFERENTEMENTE ANTES FECHA PRODUCTO INGREDIENTES CONSERVAR LUGAR FRESCO SECO TEMPERATURA ENTRE CONTENIDO NETO PESO VOLUMEN LITROS LITRO USO ALIMENTARIO INDUSTRIAL MANTENER ALCANCE NINOS PELIGRO ATENCION CONTIENE FABRICADO ENVASADO SPAIN ESPANA EXPIRY BEFORE BEST DATE PRODUCTION STORE KEEP WITH FROM THE AND PARA CON POR DEL LAS LOS UNA'.split(' '));
+const sinAcET = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+const finMes = (y, m) => new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+const anio4 = y => { y = +y; return y < 100 ? 2000 + y : y; };
+/* Todas las fechas que aparecen en el texto, con su posición */
+function fechasEtiqueta(t) {
+  const out = []; const ok = (y, m, d) => y >= 2015 && y <= 2050 && m >= 1 && m <= 12 && (!d || (d >= 1 && d <= 31));
+  const add = (i, y, m, d) => { if (ok(y, m, d)) out.push({ i, f: d ? `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}` : finMes(y, m) }); };
+  let r;
+  const reISO = /\b(20\d\d)[\/\-.](\d{1,2})[\/\-.](\d{1,2})\b/g; while ((r = reISO.exec(t))) add(r.index, +r[1], +r[2], +r[3]);
+  const reDMY = /\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2}|\d{4})\b/g; while ((r = reDMY.exec(t))) add(r.index, anio4(r[3]), +r[2], +r[1]);
+  const reMY = /(?<![\d\/\-.])(\d{1,2})[\/\-.](20\d\d|\d{2})(?![\d\/\-.])/g; while ((r = reMY.exec(t))) if (!out.some(o => Math.abs(o.i - r.index) < 6)) add(r.index, anio4(r[2]), +r[1], 0);
+  const reMes = /\b(?:(\d{1,2})[\s\/\-.]*)?(ENE|JAN|FEB|MAR|ABR|APR|MAY|JUN|JUL|AGO|AUG|SEP|SET|OCT|NOV|DIC|DEC)[A-Z]*[\s\/\-.]*(20\d\d|\d{2})\b/g; while ((r = reMes.exec(t))) add(r.index, anio4(r[3]), MESES_ET[r[2]], r[1] ? +r[1] : 0);
+  return out.sort((a, b) => a.i - b.i);
+}
+/* Saca de un texto leído: lote, caducidad, ingrediente, proveedor y tamaño del envase */
+function analizarEtiqueta(texto) {
+  const t = sinAcET(texto).replace(/[|]/g, 'I').replace(/[ \t]+/g, ' ');
+  const o = { texto: String(texto || '').trim() };
+  // Lote: «LOTE: 12345», «LOT 24A17», «L: 2405», «BATCH 77-B», «Nº LOTE …»
+  const mL = t.match(/\b(?:N[O°º]?\s*(?:DE\s*)?LOTE|LOTE|LOT(?:E|\.)?|BATCH(?:\s*NO?\.?)?|CHARGE)\s*(?:N[O°º.]*)?\s*[:.#\-]?\s*([A-Z0-9][A-Z0-9\-\/.]{1,24})/) || t.match(/(?:^|\s)L\s*[:.]+\s*([A-Z0-9][A-Z0-9\-\/.]{1,24})/);
+  if (mL && /\d/.test(mL[1])) o.lote = mL[1].replace(/[.\-\/]+$/, '');
+  // Caducidad: la fecha que va detrás de CAD / EXP / BEST BEFORE…; si no, la más lejana
+  const fs = fechasEtiqueta(t); const hoyS = hoy();
+  const mC = /(CADUCIDAD|CAD\b|F\.?\s*CAD|CONSUMIR PREF|CONSUMIR ANTES|EXP\b|EXPIRY|EXPIRA|BEST BEFORE|BBD|USE BY|VTO|VENCE|VENCIMIENTO|DLUO|DLC|SCAD|MHD)/.exec(t);
+  const tras = mC ? fs.find(f => f.i > mC.index && f.i - mC.index < 60) : null;
+  const futuras = fs.filter(f => f.f >= hoyS).sort((a, b) => a.f < b.f ? 1 : -1);
+  const c = tras || futuras[0] || null; if (c) o.caducidad = c.f;
+  if (o.lote && fs.some(f => t.slice(f.i, f.i + o.lote.length) === o.lote)) delete o.lote; // el «lote» era una fecha
+  // Ingrediente: el que más palabras de su nombre (o de las que ya aprendió) aparezcan
+  const pal = new Set(t.split(/[^A-Z0-9]+/).filter(Boolean)); const tiene = w => w.includes(' ') ? t.includes(w) : pal.has(w);
+  let best = null;
+  for (const m of D.materiales.values()) {
+    if (m.inactivo) continue;
+    const ws = sinAcET(m.nombre).split(/[^A-Z0-9]+/).filter(w => w.length >= 3 && !['DEL', 'LAS', 'LOS', 'PARA', 'CON'].includes(w));
+    let s = 0; for (const w of ws) { if (tiene(w)) s += 2; else if ((SIN_ET[w.toLowerCase()] || []).some(tiene)) s += 1.5; }
+    for (const w of m.palabrasEtiqueta || []) if (tiene(w)) s += 1;
+    if (m.gtin && t.replace(/\D/g, '').includes(String(m.gtin))) s += 5;
+    if (s > 0 && (!best || s > best.s)) best = { s, id: m.id };
+  }
+  if (best) o.materialId = best.id;
+  // Proveedor
+  for (const p of D.proveedores.values()) { if ((p.tipos || []).every(x => x === 'leche')) continue; const ws = sinAcET(p.nombre).split(/[^A-Z0-9]+/).filter(w => w.length >= 4 && !['SOCIEDAD', 'LIMITADA', 'ANONIMA'].includes(w)); if (ws.length && ws.some(tiene)) { o.proveedorId = p.id; break; } }
+  // Tamaño del envase: «5 L», «25 LITROS», «1000 ML», «25 KG»
+  const mV = t.match(/\b(\d{1,4}(?:[.,]\d{1,3})?)\s*(LITROS?|LTS?|L|ML|CC|KG|KILOS?|G|GR)\b/);
+  if (mV) { const n = num(mV[1].replace(',', '.')); const u = mV[2]; const ml = /^L/.test(u) ? n * 1000 : /ML|CC/.test(u) ? n : 0; const g = /^K/.test(u) ? n * 1000 : /^G/.test(u) ? n : 0; if (n > 0) o.envase = ml ? { ml, txt: `${F.n(n)} ${/^L/.test(u) ? 'l' : 'ml'}` } : { g, txt: `${F.n(n)} ${/^K/.test(u) ? 'kg' : 'g'}` }; }
+  return o;
+}
+/* Unidad de entrada que cuadra con el tamaño leído (p. ej. «garrafas de 5 l») */
+function udDeEnvase(m, env) {
+  if (!m || !env) return ''; const q = env.ml || env.g; const us = unidadesEntrada(m);
+  if (['ml', 'g'].includes(m.unidad)) return (us.find(x => x[2] === q) || [''])[0];
+  if (['l', 'kg'].includes(m.unidad)) return (us.find(x => x[2] === q / 1000) || [''])[0];
+  return '';
+}
+/* Palabras propias de la etiqueta para reconocer el ingrediente la próxima vez */
+function palabrasDistintivas(texto, o) {
+  const fuera = new Set([o.lote].filter(Boolean).map(sinAcET));
+  return [...new Set(sinAcET(texto).split(/[^A-Z]+/).filter(w => w.length >= 5 && !PAL_COMUNES.has(w) && !fuera.has(w)))].slice(0, 8);
+}
+/* Prepara la foto para leer mejor: tamaño medio, en gris y con más contraste */
+function fotoParaOCR(img) {
+  const { cv, L, w, h } = lienzo(img, { max: 2000 }); const cx = cv.getContext('2d'); const id = cx.getImageData(0, 0, w, h); const d = id.data;
+  let lo = 255, hi = 0; for (let i = 0; i < L.length; i += 7) { if (L[i] < lo) lo = L[i]; if (L[i] > hi) hi = L[i]; }
+  const k = hi > lo ? 255 / (hi - lo) : 1; for (let i = 0, j = 0; i < L.length; i++, j += 4) { const v = Math.max(0, Math.min(255, (L[i] - lo) * k)); d[j] = d[j + 1] = d[j + 2] = v; }
+  cx.putImageData(id, 0, 0); return cv;
+}
+let _ocrP = null;
+async function ocrTexto(file, aviso) {
+  const img = await abrirImagen(file); if (!img) throw new Error('No se ha podido abrir la foto');
+  if (window.__ocrPrueba) return window.__ocrPrueba(file);
+  if (!window.Tesseract) { aviso('Preparando el lector de texto (la primera vez tarda un poco)…'); await cargarScript(OCR_URL); }
+  if (!_ocrP) _ocrP = Tesseract.createWorker(['spa', 'eng'], 1, { logger: m => { if (m.status === 'recognizing text') aviso(`Leyendo la etiqueta… ${Math.round((m.progress || 0) * 100)} %`); } }).catch(e => { _ocrP = null; throw e; });
+  const w = await _ocrP; aviso('Leyendo la etiqueta…');
+  const r = await w.recognize(fotoParaOCR(img)); return r?.data?.text || '';
+}
+/* Ventana para hacer la foto y leerla. Devuelve lo analizado o null */
+function leerEtiqueta() {
+  return new Promise(res => {
+    let fin = false;
+    const m = modal(`<h3>📷 Leer la etiqueta</h3><p class="sub">Para los productos que no traen código de barras (cuajo, cloruro cálcico, ácido láctico…). Haz la foto de cerca, recta, con buena luz y que se vea el lote y la caducidad.</p>
+      <div class="lfoto"><label class="btn big primary">📷 Hacer foto a la etiqueta<input type="file" accept="image/*" capture="environment" hidden></label><label class="btn">🖼 Elegir una foto<input type="file" accept="image/*" hidden></label></div>
+      <p class="lmsg sub" aria-live="polite"></p>`, { onClose: () => { if (!fin) res(null); } });
+    const msg = m.querySelector('.lmsg'); const aviso = t => { msg.textContent = t; };
+    m.querySelectorAll('input[type=file]').forEach(inp => inp.addEventListener('change', async () => {
+      const f = inp.files && inp.files[0]; inp.value = ''; if (!f) return;
+      m.querySelectorAll('.lfoto .btn').forEach(b => { b.style.opacity = .5; b.style.pointerEvents = 'none'; });
+      try {
+        const txt = await ocrTexto(f, aviso);
+        if (!txt.trim()) { aviso('No se ha leído ningún texto. Prueba otra foto más cerca y con más luz.'); return; }
+        fin = true; m.close(); res(analizarEtiqueta(txt));
+      } catch (e) { console.error(e); aviso('No se ha podido leer (¿sin internet la primera vez?). Prueba otra vez o escríbelo a mano.'); }
+      finally { m.querySelectorAll('.lfoto .btn').forEach(b => { b.style.opacity = ''; b.style.pointerEvents = ''; }); }
+    }));
+  });
+}
+/* Desde «Entrada de lotes»: foto → revisar lo leído → se añade como una línea */
+async function etiquetaACompra(form) {
+  const o = await leerEtiqueta(); if (!o || !document.body.contains(form)) return;
+  const provSel = form.querySelector('[data-k=proveedorId]');
+  const vals = { materialId: o.materialId || '', proveedorId: (provSel && !provSel.value && o.proveedorId) || '', loteProv: o.lote || '', caducidad: o.caducidad || '', cantidad: 1, ud: udDeEnvase(D.materiales.get(o.materialId), o.envase) };
+  const leido = [o.materialId ? '' : 'el ingrediente', o.lote ? '' : 'el lote', o.caducidad ? '' : 'la caducidad'].filter(Boolean);
+  formModal({
+    title: 'Revisa lo leído de la etiqueta', values: vals,
+    intro: `<p class="sub">${leido.length ? `No he encontrado ${leido.join(', ').replace(/, ([^,]*)$/, ' ni $1')}: complétalo tú. ` : ''}Comprueba que todo está bien antes de añadirlo.${o.envase ? ` En la etiqueta pone <b>${esc(o.envase.txt)}</b>.` : ''}</p>`,
+    fields: [
+      { k: 'materialId', l: 'Ingrediente', t: 'select', opts: () => opts('materiales', m => !m.inactivo, m => `${m.nombre} (${m.unidad})`), req: 1 },
+      ...(provSel && !provSel.value ? [{ k: 'proveedorId', l: 'Proveedor', t: 'select', opts: () => opts('proveedores', p => (p.tipos || []).some(t => t !== 'leche')) }] : []),
+      { k: 'loteProv', l: 'Lote', req: 1 }, { k: 'caducidad', l: 'Caducidad', t: 'date' },
+      { k: 'cantidad', l: 'Cuántos envases iguales llegan', t: 'number', req: 1, min: 0.0001 },
+      { k: 'ud', l: 'En', t: 'select', dep: ['materialId'], opts: v => unidadesEntrada(D.materiales.get(v.materialId)).map(x => [x[0], x[1]]) },
+      { k: 'txt', t: 'html', full: 1, html: `<details class="sub"><summary>Texto leído de la foto</summary><pre style="white-space:pre-wrap;font-size:12px;max-height:180px;overflow:auto">${esc(o.texto)}</pre></details>` }],
+    submit: 'Añadir a la entrada',
+    async onSubmit(v) {
+      const linea = { materialId: v.materialId, loteProv: String(v.loteProv).trim(), caducidad: v.caducidad, cantidad: v.cantidad, ud: v.ud };
+      form.dispatchEvent(new CustomEvent('rellenar', { detail: { k: 'lineas', row: linea, values: v.proveedorId ? { proveedorId: v.proveedorId } : {} } }));
+      // Aprende cómo se llama este ingrediente en su etiqueta
+      const mat = D.materiales.get(v.materialId); const nuevas = palabrasDistintivas(o.texto, o).filter(w => !(mat.palabrasEtiqueta || []).includes(w));
+      if (mat && nuevas.length) { try { await put('materiales', mat.id, { ...mat, palabrasEtiqueta: [...(mat.palabrasEtiqueta || []), ...nuevas].slice(-24) }, 'ingrediente', mat.nombre); } catch { } }
+      toast('Añadido. Revisa la cantidad y guarda la entrada.');
+    }
+  });
 }
 
 </script>
