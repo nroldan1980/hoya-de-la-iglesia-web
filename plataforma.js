@@ -36,7 +36,7 @@
     f.onsubmit = async ev => { ev.preventDefault(); err.style.color = ''; err.textContent = ''; const e = f.querySelector('#acE').value.trim(), p = f.querySelector('#acP').value;
       try { if (reg) { const n = f.querySelector('#acN').value.trim(); if (!n) throw { code: 'nombre' }; const c = await FB.auth.createUserWithEmailAndPassword(auth, e, p); await FB.auth.updateProfile(c.user, { displayName: n }); }
         else await FB.auth.signInWithEmailAndPassword(auth, e, p); } catch (x) { err.textContent = textoError(x); } };
-    setTimeout(() => el.querySelector('input')?.focus(), 30);
+    setTimeout(() => { if (!el.contains(document.activeElement)) el.querySelector('input')?.focus(); }, 30);
   }
   const textoError = x => ({ 'auth/invalid-credential': 'Email o contraseña incorrectos', 'auth/wrong-password': 'Email o contraseña incorrectos', 'auth/user-not-found': 'Email o contraseña incorrectos', 'auth/email-already-in-use': 'Ya hay un usuario con ese email', 'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres', 'auth/invalid-email': 'El email no es válido', 'auth/too-many-requests': 'Demasiados intentos: espera un poco', 'auth/network-request-failed': 'Sin conexión a internet', nombre: 'Escribe tu nombre' })[x?.code] || (x?.message || 'No se pudo entrar');
 
@@ -94,7 +94,17 @@
     canEdit: async () => esProp() || ['admin', 'gerente'].includes(await rolDe(usuario.uid)),
     async search(q) { q = String(q || '').toLowerCase(); return (await perfiles()).filter(p => !q || (p.name + ' ' + p.email).toLowerCase().includes(q)).slice(0, 20); },
     async profiles(ids) { const all = await perfiles(); const out = {}; for (const id of ids) { const p = all.find(x => x.id === id); if (p) out[id] = p; } return out; },
-    salir: () => FB.auth.signOut(auth)
+    salir: () => FB.auth.signOut(auth),
+    /* El administrador crea el usuario de un trabajador sin cerrar su propia sesión (segunda instancia de Firebase) */
+    async crearUsuario({ nombre, email, password }) {
+      const app2 = FB.app.getApps().find(a => a.name === 'altas') || FB.app.initializeApp(window.FIREBASE_CONFIG, 'altas');
+      const auth2 = FB.auth.getAuth(app2);
+      let c; try { c = await FB.auth.createUserWithEmailAndPassword(auth2, email, password); } catch (x) { throw new Error(textoError(x)); }
+      await FB.auth.updateProfile(c.user, { displayName: nombre });
+      try { await FB.fs.setDoc(FB.fs.doc(FB.fs.getFirestore(app2), 'usuarios_app/' + c.user.uid), { name: nombre, email, avatarUrl: '', visto: '' }); } catch (e) { console.warn(e); }
+      await FB.auth.signOut(auth2);
+      return { id: c.user.uid, name: nombre, email };
+    }
   };
 
   /* ---------- downloads: descarga normal del navegador ---------- */

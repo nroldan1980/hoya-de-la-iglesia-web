@@ -2210,9 +2210,10 @@ VIEWS.ajustes = {
 function usuariosHtml() {
   const roles = S.data.config.get('usuarios')?.roles || {};
   if (!S.user) return '<p>Gestión de usuarios no disponible en esta vista.</p>';
-  return card('Perfiles de acceso', `<p class="sub">El propietario de la app es siempre Administrador. Para dar acceso a otra persona: ${window.__PROPIA ? 'que cree su usuario en la pantalla de entrada («Crear usuario») y luego búscala aquí y asígnale su perfil' : 'compártele la app desde claude.ai (como mínimo «Colaborador» para poder registrar datos) y asígnale aquí su perfil'}. Cada perfil solo ve los módulos que le corresponden.</p>
+  return card('Perfiles de acceso', `<p class="sub">El propietario de la app es siempre Administrador. Para dar acceso a otra persona: ${window.__PROPIA ? 'créale aquí su usuario con «+ Crear usuario para un trabajador» (o que lo cree ella en la pantalla de entrada y luego la buscas aquí y le asignas el perfil)' : 'compártele la app desde claude.ai (como mínimo «Colaborador» para poder registrar datos) y asígnale aquí su perfil'}. Cada perfil solo ve los módulos que le corresponden.</p>
   <table class="tbl"><thead><tr><th>Usuario</th><th>Perfil</th><th></th></tr></thead><tbody>${Object.entries(roles).map(([uid, r]) => `<tr><td>${userName(uid)}</td><td><select data-rolfor="${esc(uid)}">${Object.entries(ROLES).map(([k, l]) => `<option value="${k}" ${k === r ? 'selected' : ''}>${l}</option>`).join('')}</select></td><td><button class="btn sm ghost" data-act="quitarUsuario" data-id="${esc(uid)}">Quitar</button></td></tr>`).join('') || '<tr><td colspan="3" class="empty">Sin usuarios asignados</td></tr>'}</tbody></table>
-  <h3>Añadir usuario</h3><input id="userSearch" placeholder="Buscar persona por nombre…"><ul id="userHits" class="hits"></ul>`) +
+  ${window.__PROPIA && S.user.crearUsuario ? `<p>${btn('crearUsuarioApp', '+ Crear usuario para un trabajador', 'primary')}</p><p class="sub">Pones su nombre, su email, una contraseña y su perfil. Luego le das el email y la contraseña y entra con ellos (en el ordenador o en el móvil).</p>` : ''}
+  <h3>${window.__PROPIA ? 'O buscar a alguien que ya creó su usuario' : 'Añadir usuario'}</h3><input id="userSearch" placeholder="Buscar persona por nombre…"><ul id="userHits" class="hits"></ul>`) +
     card('Qué ve cada perfil', `<table class="tbl"><thead><tr><th>Perfil</th><th>Módulos</th></tr></thead><tbody>${Object.entries(ROLES).map(([k, l]) => `<tr><td>${l}</td><td>${ACCESO[k] === '*' ? 'Todos' : ACCESO[k].map(m => MODULOS.find(x => x[0] === m)?.[1]).join(', ')}</td></tr>`).join('')}</tbody></table>`);
 }
 document.addEventListener('change', async e => {
@@ -2220,6 +2221,14 @@ document.addEventListener('change', async e => {
   const cur = S.data.config.get('usuarios') || { roles: {} };
   await put('config', 'usuarios', { ...cur, roles: { ...(cur.roles || {}), [s.dataset.rolfor]: s.value } }, 'perfil usuario', s.value); toast('Perfil asignado');
 });
+ACT.crearUsuarioApp = () => formModal({ title: 'Crear usuario para un trabajador', values: { rol: 'produccion' },
+  fields: [{ k: 'nombre', l: 'Nombre', req: 1 }, { k: 'email', l: 'Email', t: 'email', req: 1 }, { k: 'password', l: 'Contraseña (mínimo 6 caracteres)', req: 1, help: 'Apúntala y dásela; luego la puede cambiar con «He olvidado la contraseña».' }, { k: 'rol', l: 'Perfil', t: 'select', opts: Object.entries(ROLES), req: 1 }],
+  submit: 'Crear usuario', async onSubmit(v) {
+    if (String(v.password).length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres');
+    const u = await S.user.crearUsuario({ nombre: v.nombre.trim(), email: v.email.trim().toLowerCase(), password: v.password });
+    const cur = S.data.config.get('usuarios') || {}; await put('config', 'usuarios', { ...cur, roles: { ...(cur.roles || {}), [u.id]: v.rol } }, 'crear usuario', `${u.name} (${v.rol})`);
+    S.profiles[u.id] = { name: u.name }; toast(`Usuario creado: ${u.email}. Ya puede entrar.`);
+  } });
 ACT.quitarUsuario = async uid => { const cur = S.data.config.get('usuarios'); const roles = { ...cur.roles }; delete roles[uid]; await put('config', 'usuarios', { ...cur, roles }, 'quitar usuario'); toast('Usuario quitado'); };
 ACT.editEmpresa = () => formModal({ title: 'Empresa y parámetros', values: S.data.config.get('empresa') || {}, fields: [{ k: 'nombre', l: 'Nombre comercial', req: 1 }, { k: 'razon', l: 'Razón social' }, { k: 'nif', l: 'NIF' }, { k: 'direccion', l: 'Dirección', full: 1 }, { k: 'rgseaa', l: 'Nº Registro Sanitario (RGSEAA)' }, { k: 'tel', l: 'Teléfono' }, { k: 'web', l: 'Web' },
 { k: 'ss', l: 'Suero', t: 'section' }, { k: 'sueroFactor', l: 'Litros de suero por litro fabricado', t: 'number', help: 'Vuestro Excel usa 0,8' }, { k: 'tanqueSuero', l: 'Capacidad del tanque de suero (l)', t: 'number' }, { k: 'sueroInicial', l: 'Suero en el tanque al empezar a usar la app (l)', t: 'number' },
