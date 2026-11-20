@@ -25,7 +25,7 @@ header .brand{font-weight:700;font-size:17px;white-space:nowrap;color:inherit;te
 .wrap{display:flex;min-height:calc(100vh - 50px)}
 #side{width:232px;flex:none;background:var(--card);border-right:1px solid var(--line);padding:14px 10px;position:sticky;top:50px;height:calc(100vh - 50px);overflow:auto}
 #nav a{display:flex;gap:10px;align-items:center;padding:9px 12px;border-radius:10px;color:var(--ink);text-decoration:none;font-weight:700;font-size:15px;border-left:4px solid transparent}
-#nav a:hover{background:var(--bg)}#nav a.salir{margin-top:18px;border-top:1px solid var(--line);border-radius:0;padding-top:14px;color:var(--mute);font-weight:600}#nav a.on{background:color-mix(in srgb,var(--acc) 12%,transparent);color:var(--acc);border-left-color:var(--acc);border-radius:4px 10px 10px 4px}.ic{width:20px;text-align:center}
+#nav a:hover{background:var(--bg)}.atras{background:#ffffff1a;color:#fff;border:1px solid #fff4;border-radius:10px;font-size:22px;line-height:1;padding:4px 12px;cursor:pointer;font-weight:700}.atras:hover{background:#fff3}#sideVelo{position:fixed;inset:50px 0 0 0;z-index:29;background:#0004}#nav a.salir{margin-top:18px;border-top:1px solid var(--line);border-radius:0;padding-top:14px;color:var(--mute);font-weight:600}#nav a.on{background:color-mix(in srgb,var(--acc) 12%,transparent);color:var(--acc);border-left-color:var(--acc);border-radius:4px 10px 10px 4px}.ic{width:20px;text-align:center}
 main{flex:1;min-width:0;padding:24px 28px 70px}#app{max-width:1400px}
 .vhead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}.vhead h1{font-size:30px;line-height:1.15}.sub{color:var(--mute);margin:4px 0 0}.vacts{display:flex;gap:6px;flex-wrap:wrap}
 .btn{font:inherit;font-weight:700;font-size:15px;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;white-space:nowrap}
@@ -139,15 +139,15 @@ td.conscan{white-space:nowrap}td.conscan>select,td.conscan>input{display:inline-
 .modal form .acts{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--card);padding:10px 14px;margin:0;border-top:1px solid var(--line);box-shadow:0 -4px 16px #0002}.modal form .acts .btn{flex:1;padding:13px;font-size:16px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-@media (max-width:600px){header .brand{display:none}header{gap:6px;padding:8px 8px}#gsearch{min-width:0;flex:1}}
+@media (max-width:600px){header .brand{display:none}.homebtn span{display:none}header{gap:6px;padding:8px 8px}#gsearch{min-width:0;flex:1}}
 @media (max-width:900px){#menu{display:block}#side{position:fixed;left:-240px;top:50px;z-index:30;transition:left .2s;box-shadow:4px 0 20px #0003}#side.open{left:0}.cols2{grid-template-columns:1fr}main{padding:14px 10px 60px}#who{display:none}header .brand small{display:none}.vhead h1{font-size:22px}}
 </style>
 </head>
 <body>
-<header><button id="menu" aria-label="Menú">☰</button><a id="home" class="homebtn" href="#inicio" title="Ir al panel" aria-label="Ir al panel">🏠<span>Panel</span></a><a class="brand" href="#inicio" title="Ir al panel">Hoya de la Iglesia<small>Gestión de quesería</small></a>
+<header><button id="menu" aria-label="Menú">☰</button><button id="atras" class="atras" type="button" title="Volver atrás" aria-label="Volver atrás" hidden>←</button><a id="home" class="homebtn" href="#inicio" title="Ir al panel" aria-label="Ir al panel">🏠<span>Panel</span></a><a class="brand" href="#inicio" title="Ir al panel">Hoya de la Iglesia<small>Gestión de quesería</small></a>
 <input id="gsearch" type="search" placeholder="Buscar o escanear lote, entrada, albarán, cliente…" autocomplete="off">
 <button class="scanbtn micbtn" data-act="voz" title="Dictar una orden por voz" aria-label="Dictar una orden">🎤</button><button class="scanbtn" data-act="escanear" title="Escanear un código (lector o foto)" aria-label="Escanear un código"><svg class="ico" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M2 5h2v14H2zM6 5h1v14H6zM9 5h2.5v14H9zM13.5 5h1v14h-1zM16.5 5h2v14h-2zM20.5 5h1.5v14h-1.5z" fill="currentColor"/></svg></button><button id="hfPill" class="hfpill" data-act="manosLibres" hidden></button><span id="who"></span></header>
-<div class="wrap"><aside id="side"><nav id="nav"></nav></aside><main><div id="app"></div></main></div>
+<div class="wrap"><aside id="side"><nav id="nav"></nav></aside><div id="sideVelo" hidden></div><main><div id="app"></div></main></div>
 <div id="toasts"></div>
 <script>
 /* ===================== MOTOR DE CÁLCULO (puro, sin DOM) =====================
@@ -2474,7 +2474,13 @@ async function migrarKgA() {
   await put('config', 'migraciones', { ...(S.data.config.get('migraciones') || {}), kgA: localISO() }, 'migración', `kilos sin pesar (${n} lotes)`);
 }
 function calcRol() { if (S.isOwner) return 'admin'; if (!S.uid) return null; return S.data.config.get('usuarios')?.roles?.[S.uid] || null; }
-window.addEventListener('hashchange', () => { S.rol = calcRol(); $('#side').classList.remove('open'); window.scrollTo(0, 0); render(); });
+/* Menú lateral: se pliega solo al tocar fuera (un velo tapa la pantalla para no pulsar nada sin querer) */
+function menuLateral(abrir) { const sd = $('#side'); if (!sd) return; sd.classList.toggle('open', abrir); const v = $('#sideVelo'); if (v) v.hidden = !abrir || getComputedStyle($('#menu')).display === 'none'; }
+/* Flecha «volver atrás»: deshace el último paso dentro de la app */
+const NAV = { pasos: 0, atras: false };
+function pintaAtras() { const b = $('#atras'); if (b) b.hidden = !NAV.pasos && (location.hash.slice(1) || 'inicio') === 'inicio'; }
+ACT.atras = () => { if (MODALS.length) { MODALS[MODALS.length - 1].querySelector('.x')?.click(); return; } if (NAV.pasos > 0) { NAV.atras = true; history.back(); } else location.hash = 'inicio'; };
+window.addEventListener('hashchange', () => { if (NAV.atras) { NAV.pasos = Math.max(0, NAV.pasos - 1); NAV.atras = false; } else NAV.pasos++; S.rol = calcRol(); menuLateral(false); pintaAtras(); window.scrollTo(0, 0); render(); });
 document.addEventListener('click', e => {
   const a = e.target.closest('[data-act]'); if (a) { e.preventDefault(); const f = ACT[a.dataset.act]; if (f) Promise.resolve(f(a.dataset.id)).catch(err => toast(err.message || String(err), 'err')); return; }
   const tb = e.target.closest('[data-tab]'); if (tb) { TAB[tb.dataset.tab] = tb.dataset.v; render(); return; }
@@ -2487,7 +2493,10 @@ document.addEventListener('input', e => { const q = e.target.closest('[data-tq]'
 document.addEventListener('change', e => { const s = e.target.closest('[data-setab]'); if (s) { TAB[s.dataset.setab] = s.value; render(); } });
 async function init() {
   $('#gsearch').addEventListener('keydown', e => { if (e.key === 'Enter') { const q = e.target.value.trim(); if (!q) return; if (!irACodigo(q)) { const g = gs1(q); if (g.lote || g.gtin) codigoNoEncontrado(q); else location.hash = 'buscar-' + encodeURIComponent(q); } e.target.value = ''; } });
-  $('#menu').onclick = () => $('#side').classList.toggle('open');
+  $('#menu').onclick = () => menuLateral(!$('#side').classList.contains('open'));
+  $('#sideVelo').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); menuLateral(false); });
+  $('#atras').onclick = () => ACT.atras(); pintaAtras();
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#side').classList.contains('open') && !MODALS.length) menuLateral(false); });
   render();
   if (!window.claude || !window.claude.use) { S.err = 'Esta aplicación funciona dentro de claude.ai (necesita la base de datos de la quesería).'; render(); return; }
   const [db, user, dl, dict] = await Promise.all([claude.use('db'), claude.use('user'), claude.use('downloads'), claude.use('dictation')]);
@@ -4096,11 +4105,12 @@ En **Clientes** está cada cliente con su persona de contacto, teléfono, códig
 Para crear uno: **+ Nuevo cliente**, o escribe su nombre directamente al añadirlo en pedidos.` },
   { id: 'config', t: 'Configuración', p: ['configuración', 'cubas', 'productos', 'formatos', 'usuarios', 'permisos', 'tanques', 'operarios'], x: `
 Solo administradores. Aquí se configuran: empresa, **productos** (formatos, peso medio, días de maduración, código de FactuSol), **cubas** (número 1–9; para sustituir una cuba, desactiva la vieja y crea la nueva con el mismo número), tanques, cámaras y ubicaciones, ingredientes, operarios, usuarios y permisos, importaciones y copias.` },
-  { id: 'permisos', t: 'Quién ve qué', p: ['permiso', 'quién ve', 'precio', 'observaciones', 'restringido', 'josé', 'salir', 'cerrar sesión', 'cambiar de usuario'], x: `
+  { id: 'permisos', t: 'Quién ve qué', p: ['permiso', 'quién ve', 'precio', 'observaciones', 'restringido', 'josé', 'salir', 'cerrar sesión', 'cambiar de usuario', 'menu', 'atras', 'volver', 'flecha'], x: `
 - Los **precios de la leche** y las liquidaciones solo los ven los administradores. Los demás sí apuntan los litros.
 - Las **observaciones** de fabricación y de recepción solo las ven José y los administradores.
 - **Corregir fabricaciones** solo pueden José y los administradores.
 - Cada perfil ve los apartados del menú que le corresponden.
+- El **menú ☰** se pliega solo al elegir un apartado o al tocar fuera de él. La flecha **←** de arriba vuelve al paso anterior (si hay una ventana abierta, la cierra).
 - Para **salir de la app** (cambiar de usuario), abre el menú y pulsa **🚪 Salir de la app**, al final de la lista. Pide confirmación para no salir sin querer.` },
 ];
 const AY = { q: '', hist: [], busy: false };

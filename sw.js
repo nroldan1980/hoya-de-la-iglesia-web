@@ -1,6 +1,6 @@
 /* Guarda la app en el dispositivo para que abra rápido y aunque falle la conexión un momento.
    Los datos van aparte (Firebase guarda una copia y sincroniza solo). */
-const V = 'queseria-v3';
+const V = 'queseria-v4';
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(V).then(c => c.addAll(['./', 'index.html', 'plataforma.js', 'firebase-config.js', 'manifest.webmanifest']).catch(() => {}))); });
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', e => {
