@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta name="app-version" content="3ebcea5340"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#233a2e"><link rel="apple-touch-icon" href="icono-192.png"><script src="firebase-config.js"></script><script src="plataforma.js"></script>
+<meta name="app-version" content="9d56b9f6b4"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#233a2e"><link rel="apple-touch-icon" href="icono-192.png"><script src="firebase-config.js"></script><script src="plataforma.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hoya de la Iglesia · Gestión de quesería</title>
@@ -724,17 +724,7 @@ const bar = (v, max) => { const p = max > 0 ? Math.min(100, v / max * 100) : 0; 
 /* ---------- ALERTAS (compartidas por panel y calidad) ---------- */
 function alertas() {
   const A = []; const dv = DV(); const c = cfg(); const h = hoy();
-  // Cámaras: última lectura fuera de rango o sin lectura hoy
-  for (const u of D.ubicaciones.values()) {
-    if (u.tipo !== 'camara' || u.inactivo) continue;
-    const regs = [...D.camreg.values()].filter(r => r.ubicId === u.id && r.tipo === 'ambiente').sort(by('fecha', -1));
-    const r = regs[0];
-    if (r) {
-      if ((u.tempMin !== '' && u.tempMin != null && num(r.temp) < num(u.tempMin)) || (u.tempMax !== '' && u.tempMax != null && num(r.temp) > num(u.tempMax))) A.push(['bad', `${u.nombre}: temperatura ${F.n(r.temp, 1)} °C fuera de rango (${F.dt(r.fecha)})`, '#cam-' + u.id]);
-      if (r.hum !== '' && ((u.humMin !== '' && u.humMin != null && num(r.hum) < num(u.humMin)) || (u.humMax !== '' && u.humMax != null && num(r.hum) > num(u.humMax)))) A.push(['warn', `${u.nombre}: humedad ${F.n(r.hum, 0)} % fuera de rango`, '#cam-' + u.id]);
-      if (r.fecha.slice(0, 10) < h) A.push(['warn', `${u.nombre}: sin registro de temperatura hoy`, '#cam-' + u.id]);
-    } else A.push(['warn', `${u.nombre}: sin registros de temperatura`, '#cam-' + u.id]);
-  }
+  // Cámaras: no tienen registro de temperatura, así que no hay alarmas de temperatura ni humedad
   // Volteos/revisión pendientes y lotes que alcanzan maduración
   for (const l of D.lotes.values()) {
     if (l.anulado) continue; const st = dv.lotes[l.id]; if (!st || st.piezas <= 0) continue;
@@ -1431,9 +1421,8 @@ VIEWS.camaras = {
       const lotes = Object.entries(dv.lotes).filter(([, s]) => (s.ubic[u.id]?.piezas || 0) > 0).map(([lid, s]) => ({ l: D.lotes.get(lid), x: s.ubic[u.id] })).filter(z => z.l).sort(by(z => z.l.fecha));
       const occ = sum(lotes, z => z.x.piezas);
       const r = [...D.camreg.values()].filter(x => x.ubicId === u.id && x.tipo === 'ambiente').sort(by('fecha', -1))[0];
-      const fuera = r && ((u.tempMin != null && u.tempMin !== '' && num(r.temp) < num(u.tempMin)) || (u.tempMax != null && u.tempMax !== '' && num(r.temp) > num(u.tempMax)));
-      return `<div class="cam ${fuera ? 'alarm' : ''}"><div class="deph"><a href="#cam-${esc(u.id)}"><b>${esc(u.nombre)}</b></a><span>${esc(u.tipo)}</span></div>
-      <div class="camenv">${r ? `<b>${F.n(r.temp, 1)} °C</b>${r.hum !== '' && r.hum != null ? ` · <b>${F.n(r.hum, 0)} %HR</b>` : ''}<small> ${F.dt(r.fecha)}</small>` : '<small>Sin lecturas</small>'}${u.tempMin !== '' && u.tempMin != null ? `<small> · objetivo ${u.tempMin}–${u.tempMax} °C${u.humMin ? `, ${u.humMin}–${u.humMax} %` : ''}</small>` : ''}</div>
+      return `<div class="cam"><div class="deph"><a href="#cam-${esc(u.id)}"><b>${esc(u.nombre)}</b></a><span>${esc(u.tipo)}</span></div>
+      <div class="camenv">${r ? `<b>${F.n(r.temp, 1)} °C</b>${r.hum !== '' && r.hum != null ? ` · <b>${F.n(r.hum, 0)} %HR</b>` : ''}<small> ${F.dt(r.fecha)}</small>` : ''}${u.tempMin !== '' && u.tempMin != null ? `<small> · objetivo ${u.tempMin}–${u.tempMax} °C${u.humMin ? `, ${u.humMin}–${u.humMax} %` : ''}</small>` : ''}</div>
       <div>${F.n(occ)} piezas${num(u.capacidad) ? ' / ' + F.n(u.capacidad) : ''}</div>${num(u.capacidad) ? bar(occ, num(u.capacidad)) : ''}
       <table class="mini"><tbody>${lotes.map(z => { const v = D.variedades.get(z.l.variedadId); const dias = dayDiff(z.l.fecha, h); const e = loteEstado(z.l, dv.lotes[z.l.id], v, null, h); return `<tr><td>${link('lote-' + z.l.id, z.l.id)}</td><td>${esc(v?.nombre || '')}</td><td class="num">${z.x.piezas} pz</td><td class="num">${F.n(z.x.kg, 1)} kg</td><td class="num">${dias} d</td><td>${est(e)}</td></tr>`; }).join('') || '<tr><td class="empty">Vacía</td></tr>'}</tbody></table>
       <div class="depacts">${occ ? btn('pasarCamara', '⇄ Pasar a otra cámara', 'sm', u.id) : ''}${btn('registroCamara', 'Registrar', 'sm', u.id)}${btn('nuevaLimpieza', 'Limpieza', 'sm', 'camara:' + u.id)}</div></div>`;
@@ -1474,7 +1463,7 @@ ACT.registroCamara = (id, pre = {}) => {
       if (v.tipo !== 'ambiente' && !(v.loteIds || []).length) throw new Error('Selecciona al menos un lote');
       await put('camreg', newId('C'), { ubicId: v.ubicId, fecha: v.fecha, tipo: v.tipo, temp: v.temp === '' ? '' : num(v.temp), hum: v.hum === '' || v.hum == null ? '' : num(v.hum), loteIds: v.tipo === 'ambiente' ? [] : v.loteIds, operario: v.operario, obs: v.obs }, 'registro cámara', v.tipo);
       const u = D.ubicaciones.get(v.ubicId);
-      if (v.tipo === 'ambiente' && ((u.tempMax !== '' && u.tempMax != null && num(v.temp) > num(u.tempMax)) || (u.tempMin !== '' && u.tempMin != null && num(v.temp) < num(u.tempMin)))) toast(`⚠ Temperatura fuera del rango de ${u.nombre}`, 'err'); else toast('Registro guardado');
+      toast('Registro guardado');
     }
   });
 };
@@ -4044,6 +4033,7 @@ Para abrirla: búscalo arriba o pasa el lector por su etiqueta.
 Desde la ficha puedes pesar, corregir (José y administradores) e imprimir de nuevo la etiqueta.` },
   { id: 'camaras', t: 'Cámaras: pasar quesos de maduración a frío', p: ['cámara', 'maduración', 'frío', 'mover', 'trasladar', 'volteo'], x: `
 En **Cámaras** ves qué lotes hay en cada sitio. Con **⇄ Pasar a otra cámara** mueves uno o varios lotes (puedes escanearlos) de la cámara de maduración a la de frío u otra. Por defecto propone la cámara de frío y todos los quesos del lote.
+Las cámaras **no llevan registro de temperatura**, así que la app no da alarmas de temperatura ni de humedad.
 También se apuntan volteos, lavados y revisiones.` },
   { id: 'pedidos', t: 'Pedidos de la semana (clientes)', p: ['pedido', 'cliente', 'semana', 'unidades', 'mandado', 'preparado', 'confirmado', 'nota'], x: `
 En **Pedidos de la semana → Pedidos por cliente** cada fila es un cliente y cada columna una semana. Elige el producto arriba.
