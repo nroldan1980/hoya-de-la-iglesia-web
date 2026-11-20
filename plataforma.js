@@ -168,5 +168,23 @@
   };
   window.salirApp = () => auth && FB.auth.signOut(auth);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arrancar); else arrancar();
-  if ('serviceWorker' in navigator && location.protocol === 'https:') window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => { }));
+  if ('serviceWorker' in navigator && location.protocol === 'https:') window.addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => { }));
+  /* Aviso de versión nueva: al volver a la app y cada 5 minutos mira si se ha publicado un cambio */
+  const miVersion = document.querySelector('meta[name=app-version]')?.content;
+  async function hayVersionNueva() {
+    if (!miVersion || document.getElementById('avisoVersion')) return;
+    try {
+      const t = await fetch('index.html?v=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '');
+      const v = (t.match(/name="app-version" content="([^"]+)"/) || [])[1];
+      if (v && v !== miVersion) {
+        navigator.serviceWorker?.getRegistration?.().then(r => r && r.update()).catch(() => { });
+        const d = document.createElement('div'); d.id = 'avisoVersion';
+        d.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9999;background:#233a2e;color:#fff;padding:12px 16px;border-radius:14px;box-shadow:0 6px 24px #0005;display:flex;gap:12px;align-items:center;font:600 15px system-ui;max-width:92vw';
+        d.innerHTML = '<span>Hay una versión nueva de la app</span><button type="button" style="background:#fff;color:#233a2e;border:0;border-radius:10px;padding:8px 14px;font:700 15px system-ui;cursor:pointer">Actualizar</button>';
+        d.querySelector('button').onclick = () => location.reload();
+        document.body.appendChild(d);
+      }
+    } catch { }
+  }
+  if (location.protocol === 'https:') { setTimeout(hayVersionNueva, 4000); setInterval(hayVersionNueva, 5 * 60 * 1000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') hayVersionNueva(); }); }
 })();
