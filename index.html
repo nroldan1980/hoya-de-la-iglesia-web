@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta name="app-version" content="d787618da1"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#233a2e"><link rel="apple-touch-icon" href="icono-192.png"><script src="firebase-config.js"></script><script src="plataforma.js"></script>
+<meta name="app-version" content="aa3191f43d"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#233a2e"><link rel="apple-touch-icon" href="icono-192.png"><script src="firebase-config.js"></script><script src="plataforma.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hoya de la Iglesia · Gestión de quesería</title>
@@ -1800,7 +1800,7 @@ ACT.editCliente = id => {
   const c = id ? D.clientes.get(id) : null;
   formModal({
     title: c ? 'Editar cliente' : 'Nuevo cliente', values: c || { tarifas: [] },
-    fields: [{ k: 'nombre', l: 'Nombre', req: 1, full: 1 }, { k: 'contacto', l: 'Persona de contacto' }, { k: 'tel', l: 'Teléfono', t: 'tel' }, { k: 'numero', l: 'Código del cliente en FactuSol', t: 'number', help: 'El número de cliente de FactuSol, para volcar los albaranes.' }, ...(c ? [{ k: 'inactivo', l: 'Inactivo (ya no compra)', t: 'check' }] : [])],
+    fields: [{ k: 'nombre', l: 'Nombre', req: 1, full: 1 }, { k: 'contacto', l: 'Persona de contacto' }, { k: 'tel', l: 'Teléfono', t: 'tel' }, { k: 'nif', l: 'NIF / CIF', help: 'Sirve para reconocer al cliente en sus pedidos en PDF.' }, { k: 'numero', l: 'Código del cliente en FactuSol', t: 'number', help: 'El número de cliente de FactuSol, para volcar los albaranes.' }, ...(c ? [{ k: 'inactivo', l: 'Inactivo (ya no compra)', t: 'check' }] : [])],
     async onSubmit(v) { v.tarifas = (v.tarifas || []).filter(t => t.variedadId); if ([...D.clientes.values()].some(x => x.id !== id && x.nombre.trim().toUpperCase() === v.nombre.trim().toUpperCase())) throw new Error('Ya hay un cliente con ese nombre'); v.nombre = v.nombre.trim(); const cid = id || newId('K'); await put('clientes', cid, v, id ? 'editar cliente' : 'cliente', v.nombre); toast('Cliente guardado'); if (!id) location.hash = 'cli-' + cid; }
   });
 };
@@ -3143,7 +3143,7 @@ VIEWS.plan = {
     const stPes = lotesV.filter(l => l.pesoReal); const stkg = sum(stPes, l => Math.max(0, dvS.lotes[l.id]?.kg || 0)); const sinP = sum(lotesV.filter(l => !l.pesoReal), l => Math.max(0, dvS.lotes[l.id]?.piezas || 0));
     const pc = prepSem(cur);
     const kpisSt = `<div class="kpis">${kpi('Stock total de ' + v.nombre, F.n(stq) + ' quesos', sinP ? `${F.n(sinP)} sin pesar todavía` : 'todo pesado')}${kpi('Kilos en stock', stkg ? F.kg(stkg) : '—', 'de los quesos ya pesados')}${kpi('Pedido esta semana', F.n(pedidoSemana(vid, cur)) + ' quesos', pc.q ? `pesados ${F.n(pc.q)} · ${F.kg(pc.kg)}` : 'nada pesado aún')}</div>`;
-    const cab = head(`Pedidos de la semana`, (tab === 'pedidos' ? btn('verAlbaranes', '📄 Datos para albaranes y lotes', 'primary') + btn('planCliente', '+ Añadir cliente') : '') + btn('planExcel', 'Excel'), `${esc(v.nombre)}: se vende a las <b>${nSem} semanas</b> de fabricarse (se cambia en la ficha del producto). Lo vendido sale primero de los lotes más antiguos.`) +
+    const cab = head(`Pedidos de la semana`, (tab === 'pedidos' ? btn('pedidoPDF', '📥 Meter pedido en PDF', 'primary') + btn('verAlbaranes', '📄 Datos para albaranes y lotes') + btn('planCliente', '+ Añadir cliente') : '') + btn('planExcel', 'Excel'), `${esc(v.nombre)}: se vende a las <b>${nSem} semanas</b> de fabricarse (se cambia en la ficha del producto). Lo vendido sale primero de los lotes más antiguos.`) +
       `<div class="filt">${prodSel}<span style="flex:1"></span>${nav}</div>` + tabsH;
     if (tab === 'comercial') return head('Pedidos de la semana', comerciales().length ? btn('comExcel', 'Excel del día o de la semana') : '', 'Hoja del comercial: lo que se lleva en la furgoneta, todos los productos juntos.') + `<div class="filt"><span style="flex:1"></span>${nav}</div>` + tabsH + comercialHtml(semanas, cur);
     if (tab === 'resumen') return head('Pedidos de la semana', btn('albaranesFactusol', '📄 Albaranes para FactuSol', 'primary') + btn('resumenExcel', 'Excel'), 'Totales de lo pesado y entregado por día, semana o mes: por cliente y por lote, para cuadrar.') + tabsH + resumenHtml(cur);
@@ -4042,6 +4042,13 @@ Desde la ficha puedes pesar, corregir (José y administradores) e imprimir de nu
 En **Cámaras** ves qué lotes hay en cada sitio. Con **⇄ Pasar a otra cámara** mueves uno o varios lotes (puedes escanearlos) de la cámara de maduración a la de frío u otra. Por defecto propone la cámara de frío y todos los quesos del lote.
 Las cámaras **no llevan registro de temperatura**, así que la app no da alarmas de temperatura ni de humedad.
 También se apuntan volteos, lavados y revisiones.` },
+  { id: 'pedidopdf', t: 'Meter un pedido que llega en PDF por correo', p: ['pdf', 'correo', 'email', 'pedido', 'charcuval', 'adjunto', 'subir'], x: `
+1. Guarda el PDF del correo en el móvil o en el ordenador (no hace falta imprimir nada).
+2. En **Pedidos de la semana** pulsa **📥 Meter pedido en PDF** y elige el archivo.
+3. La app lee el número, la fecha y las líneas, y reconoce el **cliente** (por su NIF o su nombre) y **nuestro producto** de cada línea.
+4. Revisa: cliente, **semana** (si el pedido es de sábado o domingo propone la semana siguiente), **día de entrega** si viene un día fijo, y los quesos de cada línea. Las líneas que no son nuestras se dejan en «No meter».
+5. Pulsa **Meter en los pedidos**. Queda como confirmado por el cliente, con el número de pedido en la nota.
+La primera vez con cada cliente puede que tengas que elegir algún producto; la app **aprende** sus referencias y la próxima vez lo pone solo.` },
   { id: 'pedidos', t: 'Pedidos de la semana (clientes)', p: ['pedido', 'cliente', 'semana', 'unidades', 'mandado', 'preparado', 'confirmado', 'nota'], x: `
 En **Pedidos de la semana → Pedidos por cliente** cada fila es un cliente y cada columna una semana. Elige el producto arriba.
 Pulsa la casilla para poner las unidades, el estado (mandado a preparar, modificado, preparado), si lo ha confirmado el cliente y una nota.
@@ -4118,7 +4125,7 @@ const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ
 /* Buscador del manual sin Claude: entiende preguntas normales («¿cómo paso quesos a frío?»).
    Quita palabras vacías, usa la raíz de cada palabra y sinónimos, y puntúa títulos, palabras clave y frases. */
 const AY_VACIAS = new Set('como cómo que qué donde dónde cuando cuándo para por con sin del las los una uno unos unas este esta esto ese esa eso hay hace hacer puedo puede se me te le lo la el en de y o a al mi su sus es son ser está estan están tengo tiene quiero quieres cual cuál cuales cuáles porque por qué muy mas más ya hoy algo'.split(' ').map(w => norm(w)));
-const AY_SIN = { frio: 'camara', camaras: 'camara', mover: 'pasar', trasladar: 'pasar', bascula: 'pesar', peso: 'pesar', kilos: 'pesar', kilo: 'pesar', albaran: 'factusol', facturar: 'factusol', factura: 'factusol', contasol: 'factusol', leche: 'recepcion', cisterna: 'recepcion', tanque: 'recepcion', ganadero: 'recepcion', cuba: 'fabricar', elaborar: 'fabricar', fabricacion: 'fabricar', etiqueta: 'lote', codigo: 'lector', escaner: 'lector', escanear: 'lector', pistola: 'lector', sal: 'salmuera', acido: 'salmuera', lactico: 'salmuera', baume: 'salmuera', limpieza: 'limpieza', detergente: 'limpieza', desinfectante: 'limpieza', garrafa: 'ingrediente', cuajo: 'ingrediente', fermento: 'ingrediente', cloruro: 'ingrediente', contar: 'inventario', recuento: 'inventario', cuadrar: 'inventario', furgoneta: 'comercial', vendedor: 'comercial', siglas: 'siglas', vrl: 'siglas', veq: 'siglas', usuario: 'permiso', perfil: 'permiso', precio: 'permiso', rendimiento: 'informe' };
+const AY_SIN = { frio: 'camara', camaras: 'camara', mover: 'pasar', trasladar: 'pasar', bascula: 'pesar', peso: 'pesar', kilos: 'pesar', kilo: 'pesar', albaran: 'factusol', facturar: 'factusol', adjunto: 'pdf', correo: 'pdf', email: 'pdf', factura: 'factusol', contasol: 'factusol', leche: 'recepcion', cisterna: 'recepcion', tanque: 'recepcion', ganadero: 'recepcion', cuba: 'fabricar', elaborar: 'fabricar', fabricacion: 'fabricar', etiqueta: 'lote', codigo: 'lector', escaner: 'lector', escanear: 'lector', pistola: 'lector', sal: 'salmuera', acido: 'salmuera', lactico: 'salmuera', baume: 'salmuera', limpieza: 'limpieza', detergente: 'limpieza', desinfectante: 'limpieza', garrafa: 'ingrediente', cuajo: 'ingrediente', fermento: 'ingrediente', cloruro: 'ingrediente', contar: 'inventario', recuento: 'inventario', cuadrar: 'inventario', furgoneta: 'comercial', vendedor: 'comercial', siglas: 'siglas', vrl: 'siglas', veq: 'siglas', usuario: 'permiso', perfil: 'permiso', precio: 'permiso', rendimiento: 'informe' };
 const ayRaiz = w => { w = norm(w); return w.length > 5 ? w.replace(/(aciones|acion|amientos|amiento|mente|ando|iendo|ados|idas|idos|ada|ido|ida|ado|ar|er|ir|es|s)$/, '') : w.replace(/s$/, ''); };
 const ayPalabras = q => norm(q).split(/[^a-z0-9ñ]+/).filter(w => w.length > 2 && !AY_VACIAS.has(w)).flatMap(w => [ayRaiz(w), ...(AY_SIN[w] ? [ayRaiz(AY_SIN[w])] : [])]).filter((w, i, a) => w.length > 2 && a.indexOf(w) === i);
 function seccionesPara(q) {
@@ -4565,6 +4572,130 @@ async function etiquetaACompra(form) {
       toast('Añadido. Revisa la cantidad y guarda la entrada.');
     }
   });
+}
+
+/* ===================== PEDIDOS EN PDF (los que mandan los clientes por correo) =====================
+   Se sube el PDF del pedido, la app lee las líneas (referencia, descripción, kilos, unidades, cajas),
+   reconoce el cliente y los productos (y aprende las referencias de cada cliente) y lo mete en
+   «Pedidos de la semana» después de revisarlo. Funciona con cualquier correo: basta con guardar el PDF. */
+const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const esNumPed = s => /^\d{1,6}(?:[.,]\d{1,3})?$/.test(String(s).trim());
+const numPed = s => num(String(s).trim().replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+const COL_NUM = [['kilos', /^(KILOS?|KG|PESO)$/], ['uds', /^(UNID\.?|UNIDADES|UDS\.?|UD\.?|CANT\.?|CANTIDAD|PIEZAS)$/], ['cajas', /^(CAJAS?|BULTOS?)$/]];
+/* Filas de texto de cada página del PDF, de arriba abajo: [{ y, items: [{ x, w, s }] }] */
+async function filasPDF(buf) {
+  if (window.__pdfPrueba) return window.__pdfPrueba(buf);
+  if (!window.pdfjsLib) await cargarScript(PDFJS_URL);
+  pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+  const doc = await pdfjsLib.getDocument({ data: buf }).promise; const out = [];
+  for (let p = 1; p <= doc.numPages; p++) {
+    const tc = await (await doc.getPage(p)).getTextContent(); const filas = [];
+    for (const it of tc.items) { const s = String(it.str || '').trim(); if (!s) continue; const x = it.transform[4], y = it.transform[5];
+      let f = filas.find(r => Math.abs(r.y - y) < 4); if (!f) filas.push(f = { y, items: [] }); f.items.push({ x, w: it.width || s.length * 5, s }); }
+    filas.sort((a, b) => b.y - a.y).forEach(f => { f.items.sort((a, b) => a.x - b.x); f.y = -f.y + p * 10000; out.push(f); });
+  }
+  // Partir los trozos con varias palabras para poder separar los números del final
+  for (const f of out) f.items = f.items.flatMap(it => { const ws = it.s.split(/\s+/); if (ws.length === 1) return [it]; const cw = it.w / it.s.length; let pos = 0; return ws.map(w => { const i = it.s.indexOf(w, pos); pos = i + w.length; return { x: it.x + i * cw, w: w.length * cw, s: w }; }); });
+  return out;
+}
+/* Saca del PDF: número, fecha, NIF y nombre del cliente y las líneas del pedido */
+function analizarPedidoPDF(filas) {
+  const txt = filas.map(f => f.items.map(i => i.s).join(' ')).join('\n'); const T = sinAcET(txt);
+  const o = { texto: txt, lineas: [] };
+  const mN = T.match(/N(?:UM|º|O)\.?\s*(?:DE\s*)?PEDIDO\s*:?\s*([A-Z0-9][A-Z0-9\/,.\-]*)/) || T.match(/PEDIDO\s*(?:N[ºO°.]*)?\s*:?\s*([A-Z0-9]*\d[A-Z0-9\/,.\-]*)/); if (mN) o.numero = mN[1];
+  const mF = T.match(/FECHA[^0-9\n]{0,20}(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/) || T.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+  if (mF) o.fecha = `${anio4(mF[3])}-${String(mF[2]).padStart(2, '0')}-${String(mF[1]).padStart(2, '0')}`;
+  o.nifs = [...new Set(T.match(/\b[A-HJ-NP-SUVW]\d{7}[0-9A-J]\b|\b\d{8}[A-Z]\b/g) || [])];
+  // Cabecera de la tabla: la fila con «Descripción» y alguna columna de cantidad
+  const hi = filas.findIndex(f => { const ws = f.items.map(i => sinAcET(i.s)); return ws.some(w => /^DESCRIP|^ARTICULO|^PRODUCTO/.test(w)) && ws.some(w => COL_NUM.some(([, re]) => re.test(w))); });
+  if (hi < 0) return o;
+  const cols = []; filas[hi].items.forEach(i => { const w = sinAcET(i.s); const c = COL_NUM.find(([, re]) => re.test(w)); if (c) cols.push({ k: c[0], cx: i.x + i.w / 2 }); });
+  for (const f of filas.slice(hi + 1)) {
+    const ws = f.items.map(i => sinAcET(i.s)).join(' '); if (/PAGINAS?\s+\d|^TOTAL|SUMA|BASE IMPONIBLE|ENVIAR NOTIFICACION|OBSERVACIONES GENERALES/.test(ws)) break;
+    const its = f.items.slice(); const nums = []; while (its.length && esNumPed(its[its.length - 1].s)) nums.unshift(its.pop());
+    if (!nums.length || !its.length) continue;
+    let ref = ''; if (its.length > 1 && /^[A-Z0-9][A-Z0-9\-.\/]*$/i.test(its[0].s) && /\d/.test(its[0].s)) ref = its.shift().s;
+    const desc = its.map(i => i.s).join(' ').replace(/\s+/g, ' ').trim(); if (!/[A-Za-z]{3}/.test(desc)) continue;
+    const l = { ref, desc };
+    for (const n of nums) { const cx = n.x + n.w / 2; const c = cols.slice().sort((a, b) => Math.abs(a.cx - cx) - Math.abs(b.cx - cx))[0]; if (c && l[c.k] == null) l[c.k] = numPed(n.s); else if (!c && l.uds == null) l.uds = numPed(n.s); }
+    o.lineas.push(l);
+  }
+  return o;
+}
+/* Cliente del pedido: por NIF, por lo aprendido o por el nombre (sin contar el nuestro) */
+function clienteDePedido(o) {
+  const cl = [...D.clientes.values()].filter(c => !c.inactivo);
+  const nif = s => sinAcET(s).replace(/[^A-Z0-9]/g, '');
+  for (const c of cl) if (c.nif && o.nifs.includes(nif(c.nif))) return c.id;
+  for (const c of cl) for (const r of Object.keys(c.refsPedido || {})) if (r && !r.startsWith('d:') && o.lineas.some(l => l.ref === r) && o.lineas.filter(l => (c.refsPedido || {})[l.ref]).length >= Math.min(2, o.lineas.length)) return c.id;
+  const T = sinAcET(o.texto); const propio = sinAcET(cfg().nombre || 'HOYA DE LA IGLESIA');
+  let best = null; for (const c of cl) { const ws = sinAcET(c.nombre).split(/[^A-Z0-9]+/).filter(w => w.length >= 4 && !['SOCIEDAD', 'LIMITADA', 'EXCLUSIVAS', 'COMERCIAL', 'DISTRIBUCIONES', 'HOYA', 'IGLESIA'].includes(w) && !propio.includes(w));
+    const s = ws.filter(w => new RegExp(`\\b${w}\\b`).test(T)).length; if (s && (!best || s > best.s)) best = { s, id: c.id }; }
+  return best?.id || '';
+}
+/* Producto de cada línea: lo aprendido para ese cliente (por referencia) o por el nombre */
+function productoDeLinea(l, cid) {
+  const c = D.clientes.get(cid); const ap = c?.refsPedido || {};
+  if (l.ref && ap[l.ref] && D.variedades.has(ap[l.ref])) return ap[l.ref];
+  const kd = 'd:' + sinAcET(l.desc).replace(/[^A-Z0-9]+/g, ' ').trim(); if (ap[kd] && D.variedades.has(ap[kd])) return ap[kd];
+  const pal = new Set(sinAcET(l.desc).split(/[^A-Z0-9]+/).filter(Boolean)); const comun = ['QUESO', 'CABRA', 'HOYA', 'IGLESIA', 'DE', 'LA', 'EL', 'KG', 'GR', 'DEL'];
+  let best = null; for (const v of D.variedades.values()) { if (v.inactivo) continue; const ws = sinAcET(v.nombre).split(/[^A-Z0-9]+/).filter(w => w && !comun.includes(w)); if (!ws.length) continue;
+    const s = ws.filter(w => pal.has(w)).length / ws.length; if (s >= 0.5 && (!best || s > best.s)) best = { s, id: v.id }; }
+  return best?.id || '';
+}
+const semDePedido = f => { if (!f) return lunesDe(hoy()); const d = new Date(f + 'T12:00').getDay(); return lunesDe(d === 0 || d === 6 ? addDays(f, 2) : f); };
+/* Botón «Pedido en PDF»: elegir el archivo → revisar → meter en la semana */
+ACT.pedidoPDF = () => {
+  const m = modal(`<h3>📄 Meter un pedido en PDF</h3><p class="sub">Guarda el PDF que manda el cliente por correo y súbelo aquí. La app lee las líneas y te las enseña para revisarlas antes de meterlas en los pedidos de la semana.</p>
+    <label class="btn big primary">📄 Elegir el PDF del pedido<input type="file" accept="application/pdf,.pdf" hidden></label><p class="pmsg sub" aria-live="polite"></p>`);
+  const inp = m.querySelector('input'); const msg = m.querySelector('.pmsg');
+  inp.addEventListener('change', async () => {
+    const f = inp.files && inp.files[0]; inp.value = ''; if (!f) return; msg.textContent = 'Leyendo el pedido…';
+    try { const o = analizarPedidoPDF(await filasPDF(await f.arrayBuffer())); if (!o.lineas.length) { msg.textContent = 'No he encontrado líneas de pedido en este PDF. ¿Es un pedido con tabla de productos? Pásaselo a Claude para que lo adapte.'; return; } m.close(); revisarPedidoPDF(o, f.name); }
+    catch (e) { console.error(e); msg.textContent = 'No se ha podido leer el PDF (¿sin internet la primera vez?). Prueba otra vez.'; }
+  });
+};
+function revisarPedidoPDF(o, archivo) {
+  let cid = clienteDePedido(o); const sem0 = semDePedido(o.fecha);
+  const semanas = [-1, 0, 1, 2, 3].map(i => addDays(lunesDe(hoy()), i * 7)); if (!semanas.includes(sem0)) semanas.push(sem0); semanas.sort();
+  const prodOpts = sel => `<option value="">— No meter esta línea —</option>${opts('variedades').map(([id, n]) => `<option value="${esc(id)}" ${id === sel ? 'selected' : ''}>${esc(n)}</option>`).join('')}`;
+  const L = o.lineas.map(l => ({ ...l, vid: productoDeLinea(l, cid), u: l.uds ?? l.cajas ?? '' }));
+  const m = modal(`<h3>Revisa el pedido${o.numero ? ' nº ' + esc(o.numero) : ''}</h3><p class="sub">${esc(archivo || '')}${o.fecha ? ' · fecha del pedido ' + F.d(o.fecha) : ''}. Comprueba el cliente, la semana y el producto de cada línea. Lo que elijas para cada referencia se recuerda para los próximos pedidos de este cliente.</p>
+    <div class="grid2"><div class="fld"><label>Cliente</label><select data-pc><option value="">— Elige el cliente —</option>${opts('clientes').map(([id, n]) => `<option value="${esc(id)}" ${id === cid ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+    <div class="fld"><label>Semana del pedido</label><select data-ps>${semanas.map(s => `<option value="${s}" ${s === sem0 ? 'selected' : ''}>${esc(semTxt(s))}${s === lunesDe(hoy()) ? ' (esta semana)' : ''}</option>`).join('')}</select></div>
+    <div class="fld"><label>Día de entrega</label><select data-pd><option value="">Toda la semana (sin día fijo)</option>${DIAS6.map((d, i) => `<option value="${i}">${d}</option>`).join('')}</select></div></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Ref.</th><th>En el pedido</th><th class="num">Kilos</th><th class="num">Unid.</th><th class="num">Cajas</th><th>Producto nuestro</th><th class="num">Quesos / unidades a pedir</th><th>Ahora en la semana</th></tr></thead><tbody>
+    ${L.map((l, i) => `<tr data-pl="${i}"><td>${esc(l.ref)}</td><td>${esc(l.desc)}</td><td class="num">${l.kilos != null ? F.n(l.kilos, 2) : ''}</td><td class="num">${l.uds != null ? F.n(l.uds) : ''}</td><td class="num">${l.cajas != null ? F.n(l.cajas) : ''}</td>
+      <td><select data-pv>${prodOpts(l.vid)}</select></td><td class="num"><input type="number" min="0" step="1" inputmode="numeric" data-pu value="${esc(l.u)}" style="width:90px"></td><td class="sub" data-pya></td></tr>`).join('')}</tbody></table></div>
+    <p class="perr" style="color:var(--bad)"></p><div class="acts"><button type="button" class="btn" data-cancel>Cancelar</button><button type="button" class="btn primary" data-ok>Meter en los pedidos</button></div>`, { wide: 1 });
+  const ya = () => { const c = m.querySelector('[data-pc]').value, s = m.querySelector('[data-ps]').value; m.querySelectorAll('tr[data-pl]').forEach(tr => { const v = tr.querySelector('[data-pv]').value; const x = v && c ? celda(v, s, c) : {}; tr.querySelector('[data-pya]').textContent = num(x.u) ? `ya hay ${F.n(x.u)}${x.prep ? ' (pesados ' + F.n(x.prep.piezas) + ')' : ''}: se cambiará` : ''; }); };
+  m.querySelector('[data-pc]').addEventListener('change', e => { cid = e.target.value; m.querySelectorAll('tr[data-pl]').forEach((tr, i) => { const v = productoDeLinea(L[i], cid); if (v) tr.querySelector('[data-pv]').value = v; }); ya(); });
+  m.addEventListener('change', e => { if (e.target.matches('[data-ps],[data-pv]')) ya(); }); ya();
+  m.querySelector('[data-cancel]').onclick = () => m.close();
+  m.querySelector('[data-ok]').onclick = async () => {
+    const err = t => { m.querySelector('.perr').textContent = t; };
+    const c = m.querySelector('[data-pc]').value, s = m.querySelector('[data-ps]').value, dia = m.querySelector('[data-pd]').value; if (!c) return err('Elige el cliente del pedido');
+    const filas = [...m.querySelectorAll('tr[data-pl]')].map((tr, i) => ({ ...L[i], vid: tr.querySelector('[data-pv]').value, u: Math.round(num(tr.querySelector('[data-pu]').value)) }));
+    const meter = filas.filter(f => f.vid && f.u > 0); if (!meter.length) return err('No hay ninguna línea para meter: elige el producto y las unidades');
+    const porVid = {}; meter.forEach(f => { porVid[f.vid] = (porVid[f.vid] || 0) + f.u; });
+    for (const [vid, u] of Object.entries(porVid)) { const x = celda(vid, s, c); if (x.prep && u < num(x.prep.piezas)) return err(`${D.variedades.get(vid).nombre}: ya hay ${x.prep.piezas} pesados, el pedido no puede ser menor`); }
+    m.querySelector('[data-ok]').disabled = true;
+    try {
+      const nota = `Pedido${o.numero ? ' nº ' + o.numero : ''} (PDF)`;
+      for (const [vid, u] of Object.entries(porVid)) {
+        const id = planId(vid, s); const doc = D.plansem.get(id) || { variedadId: vid, semana: s, c: {} }; const cc = { ...(doc.c || {}) }; const { dias: _d, sinDia: _s, ...prev } = cc[c] || {};
+        const dias = dia !== '' ? DIAS6.map((_, i) => i === +dia ? u : 0) : null;
+        cc[c] = { ...prev, u, est: prev.est || '', conf: true, nota: prev.nota && !prev.nota.includes(nota) ? prev.nota + ' · ' + nota : nota, ...(dias ? { dias, sinDia: 0 } : {}) };
+        await put('plansem', id, { ...doc, variedadId: vid, semana: s, c: cc }, 'pedido PDF', `${D.clientes.get(c)?.nombre}: ${u} ${D.variedades.get(vid)?.nombre}`);
+      }
+      // Aprender: NIF del cliente y qué producto es cada referencia suya
+      const cl = D.clientes.get(c); const ap = { ...(cl.refsPedido || {}) }; filas.forEach(f => { const k = f.ref || 'd:' + sinAcET(f.desc).replace(/[^A-Z0-9]+/g, ' ').trim(); if (f.vid) ap[k] = f.vid; });
+      const propios = ['F97276620', ...(cfg().nif ? [sinAcET(cfg().nif).replace(/[^A-Z0-9]/g, '')] : [])]; const nifCli = !cl.nif && o.nifs.filter(n => !propios.includes(n)).length === 1 ? o.nifs.filter(n => !propios.includes(n))[0] : '';
+      try { await put('clientes', c, { ...cl, refsPedido: ap, ...(nifCli ? { nif: nifCli } : {}) }, 'referencias del cliente', cl.nombre); } catch { }
+      m.close(); TAB.planSem = addDays(s, -7); render(); toast(`Pedido metido: ${Object.keys(porVid).length} producto${Object.keys(porVid).length > 1 ? 's' : ''} para ${cl.nombre}`);
+    } catch (e) { err(e.message || String(e)); m.querySelector('[data-ok]').disabled = false; }
+  };
 }
 
 </script>
