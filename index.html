@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta name="app-version" content="8813317da3"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#233a2e"><link rel="apple-touch-icon" href="icono-192.png"><script src="firebase-config.js"></script><script src="plataforma.js"></script>
+<meta name="app-version" content="4f13841631"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#233a2e"><link rel="apple-touch-icon" href="icono-192.png"><script src="firebase-config.js"></script><script src="plataforma.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hoya de la Iglesia · Gestión de quesería</title>
@@ -4050,7 +4050,8 @@ También se apuntan volteos, lavados y revisiones.` },
 5. Pulsa **Meter en los pedidos**. Queda como confirmado por el cliente, con el número de pedido en la nota.
 Si el pedido viene en **cajas** y la descripción dice cuántos van por caja (por ejemplo «2U/C»), propone los quesos ya multiplicados. Compruébalo siempre en «Quesos / unidades a pedir».
 **Cliente nuevo:** si es su primer pedido, la app propone **➕ Cliente nuevo** con todos sus datos sacados del PDF: nombre, NIF, dirección, código postal, población, provincia, teléfono, fax, correo, persona de contacto («Pedido por») y nuestro código de proveedor para ellos. Los busca junto a su NIF o debajo de «Entregar en» / «Cliente». Revísalos (y pon su código de FactuSol si lo tienes) y al meter el pedido queda dado de alta.
-La primera vez con cada cliente puede que tengas que elegir algún producto; la app **aprende** sus referencias y la próxima vez lo pone solo.` },
+La primera vez con cada cliente puede que tengas que elegir algún producto; la app **aprende** sus referencias y la próxima vez lo pone solo. Lo que eliges para una descripción también le sirve para los pedidos de **otros clientes** que la escriban igual.
+La app no depende de un formato fijo: busca la tabla por sus columnas (Unidades, Cajas, Kilos…) y los datos del cliente en el bloque que tiene su NIF, su nombre de empresa o «Entregar en». Si algún PDF no lo lee bien, pásaselo a Claude.` },
   { id: 'pedidos', t: 'Pedidos de la semana (clientes)', p: ['pedido', 'cliente', 'semana', 'unidades', 'mandado', 'preparado', 'confirmado', 'nota'], x: `
 En **Pedidos de la semana → Pedidos por cliente** cada fila es un cliente y cada columna una semana. Elige el producto arriba.
 Pulsa la casilla para poner las unidades, el estado (mandado a preparar, modificado, preparado), si lo ha confirmado el cliente y una nota.
@@ -4585,7 +4586,7 @@ const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf
 const esNumPed = s => /^\d{1,6}(?:[.,]\d{1,3})?$/.test(String(s).trim());
 const numPed = s => num(String(s).trim().replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
 const COL_FMT = [['uds', /^(UNIDADES|UNIDAD|UNID\.?|UDS?\.?|U\.?|PIEZAS?)$/], ['cajas', /^(CAJAS?|CJ\.?|BULTOS?)$/], ['kilos', /^(KILOS?|KGS?\.?)$/]];
-const COL_NUM = [['kilos', /^(KILOS?|KG|PESO)$/], ['uds', /^(UNID\.?|UNIDADES|UDS\.?|UD\.?|CANT\.?|CANTIDAD|PIEZAS)$/], ['cajas', /^(CAJAS?|BULTOS?)$/]];
+const COL_NUM = [['kilos', /^(?:T\.)?(KILOS?|KGS?\.?|PESO)$/], ['uds', /^(?:T\.)?(UNID\.?|UNIDADES|UNIDAD|UDS?\.?|CANT\.?|CANTIDAD|PIEZAS?)$/], ['cajas', /^(?:T\.)?(CAJAS?|CJS?\.?|BULTOS?)$/]];
 /* Filas de texto de cada página del PDF, de arriba abajo: [{ y, items: [{ x, w, s }] }] */
 async function filasPDF(buf) {
   if (window.__pdfPrueba) return window.__pdfPrueba(buf);
@@ -4606,17 +4607,19 @@ async function filasPDF(buf) {
 function analizarPedidoPDF(filas) {
   const txt = filas.map(f => f.items.map(i => i.s).join(' ')).join('\n'); const T = sinAcET(txt);
   const o = { texto: txt, lineas: [] };
-  const debajo = re => { for (let i = 0; i < filas.length - 1; i++) { const lab = filas[i].items.find(x => re.test(sinAcET(x.s))); if (!lab) continue; const cx = lab.x + lab.w / 2; const v = filas[i + 1].items.filter(x => /\d/.test(x.s)).sort((a, b) => Math.abs(a.x + a.w / 2 - cx) - Math.abs(b.x + b.w / 2 - cx))[0]; if (v && Math.abs(v.x + v.w / 2 - cx) < 70) return v.s; } return ''; };
+  const debajo = re => { for (let i = 0; i < filas.length - 1; i++) { const k = filas[i].items.findIndex(x => re.test(sinAcET(x.s))); if (k < 0) continue; const lab = filas[i].items[k]; if (/^DE\s+ENTREGA|^ENTREGA/.test(sinAcET(filas[i].items.slice(k + 1, k + 3).map(x => x.s).join(' ')))) continue; const cx = lab.x + lab.w / 2;
+    for (let j = i + 1; j < filas.length && j <= i + 3 && filas[j].y - filas[i].y < 30; j++) { const v = filas[j].items.filter(x => /\d/.test(x.s)).sort((a, b) => Math.abs(a.x + a.w / 2 - cx) - Math.abs(b.x + b.w / 2 - cx))[0]; if (v && Math.abs(v.x + v.w / 2 - cx) < 70) return v.s; } } return ''; };
   const iso = m => m && `${anio4(m[3])}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`;
   const mN = T.match(/N(?:UM|º|O)\.?\s*(?:DE\s*)?PEDIDO\s*:?\s*([A-Z0-9][A-Z0-9\/,.\-]*)/) || T.match(/PEDIDO\s*(?:N[ºO°.]*)?\s*:?\s*([A-Z0-9]*\d[A-Z0-9\/,.\-]*)/); o.numero = mN ? mN[1] : debajo(/^N(UMERO|º|O\.?)$|^PEDIDO$/) || undefined;
   const mF = T.match(/FECHA(?!\s*DE\s*ENTREGA)(?:\s*(?:DEL?\s*)?PEDIDO)?\s*:?\s*(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/); const fD = debajo(/^FECHA$/).match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
   const mE = T.match(/(?:FECHA\s*(?:DE\s*)?ENTREGA|ENTREGAR\s*(?:EL|ANTES DEL?)|SERVIR\s*(?:EL)?|F\.\s*ENTREGA)\s*:?\s*(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
   o.fecha = iso(mF) || iso(fD) || iso(T.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/)) || undefined; if (mE) o.entrega = iso(mE);
-  o.nifs = [...new Set(T.match(/\b[A-HJ-NP-SUVW]\d{7}[0-9A-J]\b|\b\d{8}[A-Z]\b/g) || [])];
-  o.emisor = emisorPedido(filas, o.nifs);
+  o.nifs = [...new Set((T.replace(/\b([A-HJ-NP-SUVW])[\s\-.]+(\d{7}[0-9A-J])\b/g, '$1$2').replace(/\b(\d{8})[\s\-.]+([A-Z])\b/g, '$1$2').match(/\b[A-HJ-NP-SUVW]\d{7}[0-9A-J]\b|\b\d{8}[A-Z]\b/g)) || [])];
+  o.emisor = emisorPedido(filas, o.nifs); if (o.emisor && !o.emisor.codProv) o.emisor.codProv = (T.match(/COD(?:IGO)?\.?[ \t]*(?:DE[ \t]*)?PROVEEDOR[ \t]*:?[ \t]*([A-Z0-9][A-Z0-9,.\-]*)/) || [])[1] || debajo(/^COD\.?$|^CODIGO$/) || '';
   // Cabecera de la tabla: la fila con «Descripción» y alguna columna de cantidad
   const hi = filas.findIndex(f => { const ws = f.items.map(i => sinAcET(i.s)); return ws.some(w => /^DESCRIP|^ARTICULO|^PRODUCTO/.test(w)) && ws.some(w => COL_NUM.some(([, re]) => re.test(w))); });
   if (hi < 0) return o;
+  const refXs = filas[hi].items.filter(i => /^(S\/|N\/)?REF\.?$|^COD(IGO)?\.?$/.test(sinAcET(i.s))).slice(1).map(i => i.x);
   const cols = []; filas[hi].items.forEach(i => { const w = sinAcET(i.s); const c = COL_NUM.find(([, re]) => re.test(w)); if (c) cols.push({ k: c[0], cx: i.x + i.w / 2 }); });
   for (const f of filas.slice(hi + 1)) {
     const ws = f.items.map(i => sinAcET(i.s)).join(' '); if (/PAGINAS?\s+\d|^TOTAL|SUMA|BASE IMPONIBLE|ENVIAR NOTIFICACION|OBSERVACIONES GENERALES/.test(ws)) break;
@@ -4627,6 +4630,7 @@ function analizarPedidoPDF(filas) {
     if (!nums.length || !its.length) continue;
     let ref = ''; if (its.length > 1 && /^[A-Z0-9][A-Z0-9\-.\/]*$/i.test(its[0].s) && /\d/.test(its[0].s)) ref = its.shift().s;
     if (ref && its.length > 1 && its[0].s === ref) its.shift(); // «Ref.» y «Ref. ajena» iguales
+    while (ref && its.length > 1 && /^[A-Z0-9][A-Z0-9\-.\/]*$/i.test(its[0].s) && /\d/.test(its[0].s) && refXs.some(x => Math.abs(x - its[0].x) < 15)) its.shift(); // 2ª referencia (Ref. prov.) bajo su columna
     const desc = its.map(i => i.s).join(' ').replace(/\s+/g, ' ').trim(); if (!/[A-Za-z]{3}/.test(desc)) continue;
     const l = { ref, desc };
     if (fmt) { const n = nums.pop(); l[fmt] = numPed(n.s); }
@@ -4640,45 +4644,50 @@ function analizarPedidoPDF(filas) {
 const NIF_PROPIO = 'F97276620';
 function emisorPedido(filas, nifs) {
   const propio = [NIF_PROPIO, ...(cfg().nif ? [sinAcET(cfg().nif).replace(/[^A-Z0-9]/g, '')] : [])];
-  const limpio = x => sinAcET(x).replace(/[^A-Z0-9]/g, '');
-  const nif = nifs.find(n => !propio.includes(n)) || '';
-  // Ancla: su NIF (nombre encima, dirección debajo) o una etiqueta tipo «Entregar en:» / «Cliente:» (todo debajo)
-  let fi = -1, it = null, modo = 'nif';
-  if (nif) { fi = filas.findIndex(f => f.items.some(i => limpio(i.s) === nif)); if (fi >= 0) it = filas[fi].items.find(i => limpio(i.s) === nif); }
-  if (fi < 0) { modo = 'etiqueta'; fi = filas.findIndex(f => /ENTREGAR EN|DIRECCION DE ENTREGA|LUGAR DE ENTREGA|^CLIENTE\b|DATOS DEL CLIENTE|FACTURAR A|COMPRADOR/.test(sinAcET(f.items.map(i => i.s).join(' ')))); if (fi >= 0) it = filas[fi].items[0]; }
-  if (fi < 0) return nif ? { nif } : null;
-  const x0 = modo === 'nif' ? it.x - 90 : it.x - 20, x1 = modo === 'nif' ? it.x + it.w + 160 : it.x + 220;
-  const bloque = f => { const grupos = []; for (const i of f.items) { const g = grupos[grupos.length - 1]; if (g && i.x - (g[g.length - 1].x + g[g.length - 1].w) < 40) g.push(i); else grupos.push([i]); }
-    const g = grupos.find(g => g[0].x < x1 && g[g.length - 1].x + g[g.length - 1].w > x0); return g ? g.map(i => i.s).join(' ').replace(/\s+([,.])/g, '$1').trim() : ''; };
-  const pag = Math.floor(filas[fi].y / 10000); const cerca = (j, max) => filas[j] && Math.floor(filas[j].y / 10000) === pag && Math.abs(filas[j].y - filas[fi].y) < max;
-  let nombre = ''; const abajo = [];
-  if (modo === 'nif') { for (let j = fi - 1; j >= 0 && cerca(j, 70) && !nombre; j--) { const b = bloque(filas[j]); if (/[A-Za-z]{3}/.test(b) && !/^(TEL|FAX|CIF|NIF|PEDIDO)/i.test(b)) nombre = b; }
-    for (let j = fi + 1; j < filas.length && cerca(j, 70) && abajo.length < 4; j++) { const b = bloque(filas[j]); if (b && !/^(REF\.?|DESCRIP)/i.test(b)) abajo.push(b); } }
-  else { const resto = bloque(filas[fi]).replace(/^.*?(ENTREGAR EN|DIRECCION DE ENTREGA|LUGAR DE ENTREGA|CLIENTE|DATOS DEL CLIENTE|FACTURAR A|COMPRADOR)\s*:?\s*/i, '');
-    const vistas = resto && sinAcET(resto) !== sinAcET(bloque(filas[fi])) ? [resto] : [];
-    for (let j = fi + 1; j < filas.length && cerca(j, 90) && vistas.length < 7; j++) { const b = bloque(filas[j]); if (!b) continue; if (/^(S\/REF|REF\.?|DESCRIP|OBSERVACIONES)/i.test(b)) break; vistas.push(b); }
-    nombre = vistas.shift() || ''; abajo.push(...vistas); }
-  const tras = (re) => { const b = abajo.find(x => re.test(sinAcET(x))); return b ? b.replace(new RegExp('^.*?(?:' + re.source + ')[^0-9A-Za-z+]*', 'i'), '').trim() : ''; };
-  const tel = tras(/\bT(?:E)?L(?:E?F(?:ONO)?)?\.?\b/).replace(/\s*FAX.*$/i, ''); const fax = tras(/\bFAX\b/);
-  const contacto = tras(/PEDIDO POR|CONTACTO|ATENCION|ATT\.?/);
-  const nifB = !nif ? (abajo.join(' ').match(/\b[A-HJ-NP-SUVW]\d{7}[0-9A-J]\b|\b\d{8}[A-Z]\b/) || [''])[0] : nif;
-  const lineas = abajo.filter(b => !/\bT(?:E)?L(?:E?F(?:ONO)?)?\.?\b|FAX|MAIL|@|PEDIDO POR|CONTACTO|ATENCION|C\.?I\.?F|N\.?I\.?F/i.test(sinAcET(b)));
-  let cp = '', poblacion = '', provincia = ''; const iCp = lineas.findIndex(b => /\b\d{5}\b/.test(b)); let dirs = lineas.slice();
-  if (iCp >= 0) { const l = lineas[iCp]; const mm = l.match(/\b(\d{5})\b/); cp = mm[1]; const antes = l.slice(0, mm.index).replace(/[\s\-–,]+$/, '').trim(); const despues = l.slice(mm.index + 5).replace(/^[\s\-–,]+/, '').trim();
-    const par = despues.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
-    if (par) { poblacion = par[1].trim(); provincia = par[2].trim(); } else if (antes) { const seg = antes.split(/\s+[-–]\s+/); poblacion = seg.pop(); provincia = despues; dirs[iCp] = seg.join(' - '); } else poblacion = despues;
-    if (!par && antes) {} else dirs[iCp] = ''; }
-  const direccion = dirs.filter(Boolean).join(', ');
+  const nifDe = t => (sinAcET(t).replace(/\b([A-HJ-NP-SUVW])[\s\-.]+(\d{7}[0-9A-J])\b/g, '$1$2').match(/\b[A-HJ-NP-SUVW]\d{7}[0-9A-J]\b|\b\d{8}[A-Z]\b/) || [''])[0];
+  // 1) Bloques de texto de la cabecera (antes de la tabla): trozos de fila que están uno debajo de otro
+  const hi = filas.findIndex(f => { const ws = f.items.map(i => sinAcET(i.s)); return ws.some(w => /^DESCRIP|^ARTICULO|^PRODUCTO/.test(w)) && ws.some(w => COL_NUM.some(([, re]) => re.test(w))); });
+  const cab = filas.slice(0, hi > 0 ? hi : Math.min(filas.length, 30)); const bloques = [];
+  for (const f of cab) {
+    const grupos = []; for (const i of f.items) { const g = grupos[grupos.length - 1]; if (g && i.x - (g.x1) < 40) { g.its.push(i); g.x1 = i.x + i.w; } else grupos.push({ its: [i], x0: i.x, x1: i.x + i.w }); }
+    for (const g of grupos) { const t = g.its.map(i => i.s).join(' ').replace(/\s+([,.])/g, '$1').trim();
+      const b = bloques.filter(b => f.y - b.y < 22 && g.x0 < b.x1 + 10 && g.x1 > b.x0 - 10).sort((p, q) => q.y - p.y)[0];
+      if (b) { b.l.push(t); b.y = f.y; b.x0 = Math.min(b.x0, g.x0); b.x1 = Math.max(b.x1, g.x1); } else bloques.push({ l: [t], y: f.y, x0: g.x0, x1: g.x1 }); }
+  }
+  // 2) El bloque del cliente: el que tiene su NIF, o va tras «Entregar en / Cliente», o tiene nombre de empresa; nunca el nuestro
+  const ETQ = /^(ENTREGAR EN|DIRECCION DE ENTREGA|LUGAR DE ENTREGA|CLIENTE|DATOS DEL CLIENTE|FACTURAR A|COMPRADOR|EMISOR)\b\s*:?\s*/;
+  const SOC = /\b(S\.?\s?L\.?\s?U?\.?|S\.?\s?A\.?\s?U?\.?|S\.?\s?COOP\.?|C\.?\s?B\.?|S\.?\s?A\.?\s?T\.?|SOCIEDAD|LIMITADA)$/;
+  const nuestro = b => { const t = sinAcET(b.l.join(' ')); return propio.some(n => t.replace(/[^A-Z0-9 ]/g, '').includes(n)) || /HOYA DE LA IGLESIA|LOS PEDRONES/.test(t) && !b.l.some(x => ETQ.test(sinAcET(x))); };
+  const punt = b => { const t = sinAcET(b.l.join(' ')); let p = 0; const n = nifDe(t); if (n && !propio.includes(n)) p += 5; if (b.l.some(x => ETQ.test(sinAcET(x)))) p += 4; if (b.l.some(x => SOC.test(sinAcET(x).replace(/[.,]+$/, '.').trim()))) p += 3; if (/@|\bT(?:E)?L(?:E?F)?\.?|\b\d{5}\b/.test(t)) p += 1; if (b.l.length >= 3) p += 1; if (/^(PEDIDO|FECHA|PAGINA|N(UM|º)|OBSERVACIONES)/.test(t)) p -= 4; return p; };
+  const cand = bloques.filter(b => !nuestro(b)).map(b => ({ b, p: punt(b) })).filter(x => x.p >= 3).sort((a, b) => b.p - a.p);
+  if (!cand.length) { const n = nifs.find(x => !propio.includes(x)); return n ? { nif: n } : null; }
+  let L = cand[0].b.l.slice(); if (ETQ.test(sinAcET(L[0]))) { const r = L[0].replace(new RegExp(ETQ.source, 'i'), '').trim(); if (r && sinAcET(r) !== sinAcET(L[0])) L[0] = r; else L.shift(); }
+  // 3) Repartir las líneas del bloque en sus datos
+  const tomar = (re) => { const i = L.findIndex(x => re.test(sinAcET(x))); if (i < 0) return ''; const x = L[i]; const m = sinAcET(x).match(re); return x.slice(m.index + m[0].length).trim(); };
+  const telRe = /(?:^|\s)(?:T\.|TEL(?:EFONO|E?F)?\.?|TLF\.?|TFNO\.?)\s*:?\s*/; const faxRe = /(?:^|\s)(?:F\.|FAX)\s*:?\s*/;
+  let tel = '', fax = ''; for (const x of L) { const X = sinAcET(x); const mt = X.match(new RegExp(telRe.source + '([+\\d][\\d\\s.]{7,}\\d)')); if (mt && !tel) tel = mt[1].trim(); const mf = X.match(new RegExp(faxRe.source + '([+\\d][\\d\\s.]{7,}\\d)')); if (mf && !fax) fax = mf[1].trim(); }
+  const contacto = tomar(/(?:PEDIDO POR|CONTACTO|ATENCION|ATT\.?)\s*:?\s*/);
+  const nif = nifs.find(x => !propio.includes(x) && L.some(l => nifDe(l) === x)) || '';
   const todo = filas.map(f => f.items.map(i => i.s).join(' ')).join(' ');
-  const email = (todo.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) || []).map(e => e.replace(/[.,;]+$/, '')).find(e => !/hoyadelaiglesia/i.test(e)) || '';
-  const codProv = (sinAcET(todo).match(/COD(?:IGO)?\.?\s*(?:DE\s*)?PROVEEDOR\s*:?\s*([A-Z0-9\-]+)/) || [])[1] || '';
-  return { nombre: nombre.replace(/\s+,/g, ','), nif: nifB, tel, fax, email, direccion, cp, poblacion, provincia, contacto, codProv };
+  const email = (L.join(' ').match(/[\w.+-]+@[\w-]+\.[\w.-]+/) || todo.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g)?.filter(e => !/hoyadelaiglesia/i.test(e)) || [''])[0].replace(/[.,;]+$/, '');
+  const resto = L.filter(x => { const X = sinAcET(x); return !telRe.test(X) && !faxRe.test(X) && !/@|^(WWW\.)?[\w-]+\.(COM|ES|NET|ORG|EU)$|PEDIDO POR|CONTACTO|ATENCION|^C\.?I\.?F|^N\.?I\.?F/.test(X) && !(nif && nifDe(X) === nif); });
+  let iN = resto.findIndex(x => SOC.test(sinAcET(x).replace(/[.,]+$/, '.').trim())); if (iN < 0) iN = 0; const nombre = (resto[iN] || '').replace(/\s+,/g, ','); const dirs = resto.filter((_, i) => i !== iN);
+  let cp = '', poblacion = '', provincia = ''; const iCp = dirs.findIndex(b => /\b\d{5}\b/.test(b));
+  if (iCp >= 0) { const l = dirs[iCp]; const mm = l.match(/\b(\d{5})\b/); cp = mm[1]; const antes = l.slice(0, mm.index).replace(/[\s\-–,]+$/, '').trim(); const despues = l.slice(mm.index + 5).replace(/^[\s\-–,]+/, '').trim();
+    const par = despues.match(/^(.*?)\s*\(([^)]+)\)\s*$/); let resta = '';
+    if (par) { poblacion = par[1].trim(); provincia = par[2].trim(); }
+    else if (antes) { const seg = antes.split(/\s+[-–]\s+/); poblacion = seg.pop(); provincia = despues; resta = seg.join(' - '); }
+    else { const seg = despues.split(/\s*[.,]\s+|\s+[-–]\s+/).filter(Boolean); if (seg.length > 1) { provincia = seg.pop(); poblacion = seg.join(', '); } else poblacion = despues; }
+    dirs[iCp] = resta; }
+  return { nombre, nif, tel, fax, email, direccion: dirs.filter(Boolean).join(', '), cp, poblacion, provincia, contacto, codProv: tomar(/COD(?:IGO)?\.?\s*(?:DE\s*)?PROVEEDOR\s*:?\s*/) };
 }
+const clienteNombreEn = (c, t) => sinAcET(c.nombre).split(/[^A-Z0-9]+/).filter(w => w.length >= 4).some(w => sinAcET(t).includes(w));
 /* Cliente del pedido: por NIF, por lo aprendido o por el nombre (sin contar el nuestro) */
 function clienteDePedido(o) {
   const cl = [...D.clientes.values()].filter(c => !c.inactivo);
   const nif = s => sinAcET(s).replace(/[^A-Z0-9]/g, '');
   for (const c of cl) if (c.nif && o.nifs.includes(nif(c.nif))) return c.id;
+  if (o.emisor?.codProv) for (const c of cl) if (c.codProveedor && sinAcET(c.codProveedor) === sinAcET(o.emisor.codProv) && clienteNombreEn(c, o.texto)) return c.id;
   for (const c of cl) for (const r of Object.keys(c.refsPedido || {})) if (r && !r.startsWith('d:') && o.lineas.some(l => l.ref === r) && o.lineas.filter(l => (c.refsPedido || {})[l.ref]).length >= Math.min(2, o.lineas.length)) return c.id;
   const T = sinAcET(o.texto); const propio = sinAcET(cfg().nombre || 'HOYA DE LA IGLESIA');
   let best = null; for (const c of cl) { const ws = sinAcET(c.nombre).split(/[^A-Z0-9]+/).filter(w => w.length >= 4 && !['SOCIEDAD', 'LIMITADA', 'EXCLUSIVAS', 'COMERCIAL', 'DISTRIBUCIONES', 'HOYA', 'IGLESIA'].includes(w) && !propio.includes(w));
@@ -4690,8 +4699,10 @@ function productoDeLinea(l, cid) {
   const c = D.clientes.get(cid); const ap = c?.refsPedido || {};
   if (l.ref && ap[l.ref] && D.variedades.has(ap[l.ref])) return ap[l.ref];
   const kd = 'd:' + sinAcET(l.desc).replace(/[^A-Z0-9]+/g, ' ').trim(); if (ap[kd] && D.variedades.has(ap[kd])) return ap[kd];
+  const gl = D.plansem.get('aprende_pedidos')?.desc || {}; if (gl[kd.slice(2)] && D.variedades.has(gl[kd.slice(2)])) return gl[kd.slice(2)];
   const pal = new Set(sinAcET(l.desc).split(/[^A-Z0-9]+/).filter(Boolean)); const comun = ['QUESO', 'CABRA', 'HOYA', 'IGLESIA', 'DE', 'LA', 'EL', 'KG', 'GR', 'DEL'];
   let best = null; for (const v of D.variedades.values()) { if (v.inactivo) continue; const ws = sinAcET(v.nombre).split(/[^A-Z0-9]+/).filter(w => w && !comun.includes(w)); if (!ws.length) continue;
+    if (ws.some(w => /\d/.test(w) && !pal.has(w))) continue; // si el nombre lleva un tamaño o número (2 KG, 4 PICOS), tiene que estar en la línea
     const s = ws.filter(w => pal.has(w)).length / ws.length; if (s >= 0.5 && (!best || s > best.s)) best = { s, id: v.id }; }
   return best?.id || '';
 }
@@ -4756,6 +4767,7 @@ function revisarPedidoPDF(o, archivo) {
       // Aprender: NIF del cliente y qué producto es cada referencia suya
       const cl = D.clientes.get(c) || { ...nuevo, numero: nuevo?.numero ? num(nuevo.numero) : undefined, tarifas: [] }; const ap = { ...(cl.refsPedido || {}) }; filas.forEach(f => { const k = f.ref || 'd:' + sinAcET(f.desc).replace(/[^A-Z0-9]+/g, ' ').trim(); if (f.vid) ap[k] = f.vid; });
       const propios = [NIF_PROPIO, ...(cfg().nif ? [sinAcET(cfg().nif).replace(/[^A-Z0-9]/g, '')] : [])]; const nifCli = !cl.nif && o.nifs.filter(n => !propios.includes(n)).length === 1 ? o.nifs.filter(n => !propios.includes(n))[0] : '';
+      try { const g = D.plansem.get('aprende_pedidos')?.desc || {}; const g2 = { ...g }; filas.forEach(f => { if (f.vid) g2[sinAcET(f.desc).replace(/[^A-Z0-9]+/g, ' ').trim()] = f.vid; }); await put('plansem', 'aprende_pedidos', { desc: g2 }, 'aprendizaje pedidos', 'productos'); } catch { }
       try { await put('clientes', c, { ...cl, refsPedido: ap, ...(nifCli ? { nif: nifCli } : {}) }, 'referencias del cliente', cl.nombre); } catch { }
       m.close(); TAB.planSem = addDays(s, -7); render(); toast(`${nuevo ? 'Cliente dado de alta y pedido' : 'Pedido'} metido: ${Object.keys(porVid).length} producto${Object.keys(porVid).length > 1 ? 's' : ''} para ${cl.nombre}`);
     } catch (e) { err(e.message || String(e)); m.querySelector('[data-ok]').disabled = false; }
