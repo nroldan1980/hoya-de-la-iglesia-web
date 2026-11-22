@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta name="app-version" content="89540908b8"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#233a2e"><link rel="apple-touch-icon" href="icono-192.png"><script src="firebase-config.js"></script><script src="plataforma.js"></script>
+<meta name="app-version" content="8813317da3"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#233a2e"><link rel="apple-touch-icon" href="icono-192.png"><script src="firebase-config.js"></script><script src="plataforma.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hoya de la Iglesia · Gestión de quesería</title>
@@ -1800,7 +1800,7 @@ ACT.editCliente = id => {
   const c = id ? D.clientes.get(id) : null;
   formModal({
     title: c ? 'Editar cliente' : 'Nuevo cliente', values: c || { tarifas: [] },
-    fields: [{ k: 'nombre', l: 'Nombre', req: 1, full: 1 }, { k: 'contacto', l: 'Persona de contacto' }, { k: 'tel', l: 'Teléfono', t: 'tel' }, { k: 'nif', l: 'NIF / CIF', help: 'Sirve para reconocer al cliente en sus pedidos en PDF.' }, { k: 'email', l: 'Correo electrónico', t: 'email' }, { k: 'direccion', l: 'Dirección', full: 1 }, { k: 'cp', l: 'Código postal' }, { k: 'poblacion', l: 'Población' }, { k: 'provincia', l: 'Provincia' }, { k: 'fax', l: 'Fax' }, { k: 'numero', l: 'Código del cliente en FactuSol', t: 'number', help: 'El número de cliente de FactuSol, para volcar los albaranes.' }, ...(c ? [{ k: 'inactivo', l: 'Inactivo (ya no compra)', t: 'check' }] : [])],
+    fields: [{ k: 'nombre', l: 'Nombre', req: 1, full: 1 }, { k: 'contacto', l: 'Persona de contacto' }, { k: 'tel', l: 'Teléfono', t: 'tel' }, { k: 'nif', l: 'NIF / CIF', help: 'Sirve para reconocer al cliente en sus pedidos en PDF.' }, { k: 'email', l: 'Correo electrónico', t: 'email' }, { k: 'direccion', l: 'Dirección', full: 1 }, { k: 'cp', l: 'Código postal' }, { k: 'poblacion', l: 'Población' }, { k: 'provincia', l: 'Provincia' }, { k: 'fax', l: 'Fax' }, { k: 'codProveedor', l: 'Nuestro código de proveedor para ellos', help: 'El que pone en sus pedidos («Cód. proveedor»).' }, { k: 'numero', l: 'Código del cliente en FactuSol', t: 'number', help: 'El número de cliente de FactuSol, para volcar los albaranes.' }, ...(c ? [{ k: 'inactivo', l: 'Inactivo (ya no compra)', t: 'check' }] : [])],
     async onSubmit(v) { v.tarifas = (v.tarifas || []).filter(t => t.variedadId); if ([...D.clientes.values()].some(x => x.id !== id && x.nombre.trim().toUpperCase() === v.nombre.trim().toUpperCase())) throw new Error('Ya hay un cliente con ese nombre'); v.nombre = v.nombre.trim(); const cid = id || newId('K'); await put('clientes', cid, v, id ? 'editar cliente' : 'cliente', v.nombre); toast('Cliente guardado'); if (!id) location.hash = 'cli-' + cid; }
   });
 };
@@ -4046,10 +4046,10 @@ También se apuntan volteos, lavados y revisiones.` },
 1. Guarda el PDF del correo en el móvil o en el ordenador (no hace falta imprimir nada).
 2. En **Pedidos de la semana** pulsa **📥 Meter pedido en PDF** y elige el archivo.
 3. La app lee el número, la fecha y las líneas, y reconoce el **cliente** (por su NIF o su nombre) y **nuestro producto** de cada línea.
-4. Revisa: cliente, **semana** (si el pedido es de sábado o domingo propone la semana siguiente), **día de entrega** si viene un día fijo, y los quesos de cada línea. Las líneas que no son nuestras se dejan en «No meter».
+4. Revisa: cliente, **semana** (si el pedido trae **fecha de entrega**, pone esa semana y ese día; si no, y es de sábado o domingo, propone la semana siguiente), **día de entrega** si viene un día fijo, y los quesos de cada línea. Las líneas que no son nuestras se dejan en «No meter».
 5. Pulsa **Meter en los pedidos**. Queda como confirmado por el cliente, con el número de pedido en la nota.
 Si el pedido viene en **cajas** y la descripción dice cuántos van por caja (por ejemplo «2U/C»), propone los quesos ya multiplicados. Compruébalo siempre en «Quesos / unidades a pedir».
-**Cliente nuevo:** si es su primer pedido, la app propone **➕ Cliente nuevo** con todos sus datos sacados del PDF: nombre, NIF, dirección, código postal, población, provincia, teléfono, fax y correo. Revísalos (y pon su código de FactuSol si lo tienes) y al meter el pedido queda dado de alta.
+**Cliente nuevo:** si es su primer pedido, la app propone **➕ Cliente nuevo** con todos sus datos sacados del PDF: nombre, NIF, dirección, código postal, población, provincia, teléfono, fax, correo, persona de contacto («Pedido por») y nuestro código de proveedor para ellos. Los busca junto a su NIF o debajo de «Entregar en» / «Cliente». Revísalos (y pon su código de FactuSol si lo tienes) y al meter el pedido queda dado de alta.
 La primera vez con cada cliente puede que tengas que elegir algún producto; la app **aprende** sus referencias y la próxima vez lo pone solo.` },
   { id: 'pedidos', t: 'Pedidos de la semana (clientes)', p: ['pedido', 'cliente', 'semana', 'unidades', 'mandado', 'preparado', 'confirmado', 'nota'], x: `
 En **Pedidos de la semana → Pedidos por cliente** cada fila es un cliente y cada columna una semana. Elige el producto arriba.
@@ -4606,9 +4606,12 @@ async function filasPDF(buf) {
 function analizarPedidoPDF(filas) {
   const txt = filas.map(f => f.items.map(i => i.s).join(' ')).join('\n'); const T = sinAcET(txt);
   const o = { texto: txt, lineas: [] };
-  const mN = T.match(/N(?:UM|º|O)\.?\s*(?:DE\s*)?PEDIDO\s*:?\s*([A-Z0-9][A-Z0-9\/,.\-]*)/) || T.match(/PEDIDO\s*(?:N[ºO°.]*)?\s*:?\s*([A-Z0-9]*\d[A-Z0-9\/,.\-]*)/); if (mN) o.numero = mN[1];
-  const mF = T.match(/FECHA[^0-9\n]{0,20}(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/) || T.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
-  if (mF) o.fecha = `${anio4(mF[3])}-${String(mF[2]).padStart(2, '0')}-${String(mF[1]).padStart(2, '0')}`;
+  const debajo = re => { for (let i = 0; i < filas.length - 1; i++) { const lab = filas[i].items.find(x => re.test(sinAcET(x.s))); if (!lab) continue; const cx = lab.x + lab.w / 2; const v = filas[i + 1].items.filter(x => /\d/.test(x.s)).sort((a, b) => Math.abs(a.x + a.w / 2 - cx) - Math.abs(b.x + b.w / 2 - cx))[0]; if (v && Math.abs(v.x + v.w / 2 - cx) < 70) return v.s; } return ''; };
+  const iso = m => m && `${anio4(m[3])}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`;
+  const mN = T.match(/N(?:UM|º|O)\.?\s*(?:DE\s*)?PEDIDO\s*:?\s*([A-Z0-9][A-Z0-9\/,.\-]*)/) || T.match(/PEDIDO\s*(?:N[ºO°.]*)?\s*:?\s*([A-Z0-9]*\d[A-Z0-9\/,.\-]*)/); o.numero = mN ? mN[1] : debajo(/^N(UMERO|º|O\.?)$|^PEDIDO$/) || undefined;
+  const mF = T.match(/FECHA(?!\s*DE\s*ENTREGA)(?:\s*(?:DEL?\s*)?PEDIDO)?\s*:?\s*(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/); const fD = debajo(/^FECHA$/).match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  const mE = T.match(/(?:FECHA\s*(?:DE\s*)?ENTREGA|ENTREGAR\s*(?:EL|ANTES DEL?)|SERVIR\s*(?:EL)?|F\.\s*ENTREGA)\s*:?\s*(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  o.fecha = iso(mF) || iso(fD) || iso(T.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/)) || undefined; if (mE) o.entrega = iso(mE);
   o.nifs = [...new Set(T.match(/\b[A-HJ-NP-SUVW]\d{7}[0-9A-J]\b|\b\d{8}[A-Z]\b/g) || [])];
   o.emisor = emisorPedido(filas, o.nifs);
   // Cabecera de la tabla: la fila con «Descripción» y alguna columna de cantidad
@@ -4637,22 +4640,39 @@ function analizarPedidoPDF(filas) {
 const NIF_PROPIO = 'F97276620';
 function emisorPedido(filas, nifs) {
   const propio = [NIF_PROPIO, ...(cfg().nif ? [sinAcET(cfg().nif).replace(/[^A-Z0-9]/g, '')] : [])];
-  const nif = nifs.find(n => !propio.includes(n)); if (!nif) return null;
-  const fi = filas.findIndex(f => f.items.some(i => sinAcET(i.s).replace(/[^A-Z0-9]/g, '') === nif)); if (fi < 0) return { nif };
-  const it = filas[fi].items.find(i => sinAcET(i.s).replace(/[^A-Z0-9]/g, '') === nif); const x0 = it.x - 90, x1 = it.x + it.w + 160;
+  const limpio = x => sinAcET(x).replace(/[^A-Z0-9]/g, '');
+  const nif = nifs.find(n => !propio.includes(n)) || '';
+  // Ancla: su NIF (nombre encima, dirección debajo) o una etiqueta tipo «Entregar en:» / «Cliente:» (todo debajo)
+  let fi = -1, it = null, modo = 'nif';
+  if (nif) { fi = filas.findIndex(f => f.items.some(i => limpio(i.s) === nif)); if (fi >= 0) it = filas[fi].items.find(i => limpio(i.s) === nif); }
+  if (fi < 0) { modo = 'etiqueta'; fi = filas.findIndex(f => /ENTREGAR EN|DIRECCION DE ENTREGA|LUGAR DE ENTREGA|^CLIENTE\b|DATOS DEL CLIENTE|FACTURAR A|COMPRADOR/.test(sinAcET(f.items.map(i => i.s).join(' ')))); if (fi >= 0) it = filas[fi].items[0]; }
+  if (fi < 0) return nif ? { nif } : null;
+  const x0 = modo === 'nif' ? it.x - 90 : it.x - 20, x1 = modo === 'nif' ? it.x + it.w + 160 : it.x + 220;
   const bloque = f => { const grupos = []; for (const i of f.items) { const g = grupos[grupos.length - 1]; if (g && i.x - (g[g.length - 1].x + g[g.length - 1].w) < 40) g.push(i); else grupos.push([i]); }
-    const g = grupos.find(g => g[0].x < x1 && g[g.length - 1].x + g[g.length - 1].w > x0); return g ? g.map(i => i.s).join(' ').trim() : ''; };
-  const pag = Math.floor(filas[fi].y / 10000); const cerca = (j) => filas[j] && Math.floor(filas[j].y / 10000) === pag && Math.abs(filas[j].y - filas[fi].y) < 70;
-  let nombre = ''; for (let j = fi - 1; j >= 0 && cerca(j) && !nombre; j--) { const b = bloque(filas[j]); if (/[A-Za-z]{3}/.test(b) && !/^(TEL|FAX|CIF|NIF|PEDIDO)/i.test(b)) nombre = b; }
-  const abajo = []; for (let j = fi + 1; j < filas.length && cerca(j) && abajo.length < 4; j++) { const b = bloque(filas[j]); if (b && !/^(REF\.?|DESCRIP)/i.test(b)) abajo.push(b); }
-  const tel = (abajo.find(b => /TEL/i.test(b)) || '').replace(/.*TEL[^0-9+]*/i, '').trim();
-  const lineas = abajo.filter(b => !/TEL|FAX|MAIL|@/i.test(b)); const iCp = lineas.findIndex(b => /^\d{5}\b/.test(b));
-  let cp = '', poblacion = '', provincia = ''; if (iCp >= 0) { const mm = lineas[iCp].match(/^(\d{5})\s+(.*?)(?:\s*\(([^)]+)\))?$/); if (mm) { cp = mm[1]; poblacion = mm[2].trim(); provincia = (mm[3] || '').trim(); } }
-  const direccion = lineas.filter((_, i) => i !== iCp).join(', ');
-  const fax = (abajo.find(b => /FAX/i.test(b)) || '').replace(/.*FAX[^0-9+]*/i, '').trim();
+    const g = grupos.find(g => g[0].x < x1 && g[g.length - 1].x + g[g.length - 1].w > x0); return g ? g.map(i => i.s).join(' ').replace(/\s+([,.])/g, '$1').trim() : ''; };
+  const pag = Math.floor(filas[fi].y / 10000); const cerca = (j, max) => filas[j] && Math.floor(filas[j].y / 10000) === pag && Math.abs(filas[j].y - filas[fi].y) < max;
+  let nombre = ''; const abajo = [];
+  if (modo === 'nif') { for (let j = fi - 1; j >= 0 && cerca(j, 70) && !nombre; j--) { const b = bloque(filas[j]); if (/[A-Za-z]{3}/.test(b) && !/^(TEL|FAX|CIF|NIF|PEDIDO)/i.test(b)) nombre = b; }
+    for (let j = fi + 1; j < filas.length && cerca(j, 70) && abajo.length < 4; j++) { const b = bloque(filas[j]); if (b && !/^(REF\.?|DESCRIP)/i.test(b)) abajo.push(b); } }
+  else { const resto = bloque(filas[fi]).replace(/^.*?(ENTREGAR EN|DIRECCION DE ENTREGA|LUGAR DE ENTREGA|CLIENTE|DATOS DEL CLIENTE|FACTURAR A|COMPRADOR)\s*:?\s*/i, '');
+    const vistas = resto && sinAcET(resto) !== sinAcET(bloque(filas[fi])) ? [resto] : [];
+    for (let j = fi + 1; j < filas.length && cerca(j, 90) && vistas.length < 7; j++) { const b = bloque(filas[j]); if (!b) continue; if (/^(S\/REF|REF\.?|DESCRIP|OBSERVACIONES)/i.test(b)) break; vistas.push(b); }
+    nombre = vistas.shift() || ''; abajo.push(...vistas); }
+  const tras = (re) => { const b = abajo.find(x => re.test(sinAcET(x))); return b ? b.replace(new RegExp('^.*?(?:' + re.source + ')[^0-9A-Za-z+]*', 'i'), '').trim() : ''; };
+  const tel = tras(/\bT(?:E)?L(?:E?F(?:ONO)?)?\.?\b/).replace(/\s*FAX.*$/i, ''); const fax = tras(/\bFAX\b/);
+  const contacto = tras(/PEDIDO POR|CONTACTO|ATENCION|ATT\.?/);
+  const nifB = !nif ? (abajo.join(' ').match(/\b[A-HJ-NP-SUVW]\d{7}[0-9A-J]\b|\b\d{8}[A-Z]\b/) || [''])[0] : nif;
+  const lineas = abajo.filter(b => !/\bT(?:E)?L(?:E?F(?:ONO)?)?\.?\b|FAX|MAIL|@|PEDIDO POR|CONTACTO|ATENCION|C\.?I\.?F|N\.?I\.?F/i.test(sinAcET(b)));
+  let cp = '', poblacion = '', provincia = ''; const iCp = lineas.findIndex(b => /\b\d{5}\b/.test(b)); let dirs = lineas.slice();
+  if (iCp >= 0) { const l = lineas[iCp]; const mm = l.match(/\b(\d{5})\b/); cp = mm[1]; const antes = l.slice(0, mm.index).replace(/[\s\-–,]+$/, '').trim(); const despues = l.slice(mm.index + 5).replace(/^[\s\-–,]+/, '').trim();
+    const par = despues.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+    if (par) { poblacion = par[1].trim(); provincia = par[2].trim(); } else if (antes) { const seg = antes.split(/\s+[-–]\s+/); poblacion = seg.pop(); provincia = despues; dirs[iCp] = seg.join(' - '); } else poblacion = despues;
+    if (!par && antes) {} else dirs[iCp] = ''; }
+  const direccion = dirs.filter(Boolean).join(', ');
   const todo = filas.map(f => f.items.map(i => i.s).join(' ')).join(' ');
   const email = (todo.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) || []).map(e => e.replace(/[.,;]+$/, '')).find(e => !/hoyadelaiglesia/i.test(e)) || '';
-  return { nombre: nombre.replace(/\s+,/g, ','), nif, tel: tel.replace(/\s*FAX.*$/i, ''), fax, email, direccion, cp, poblacion, provincia };
+  const codProv = (sinAcET(todo).match(/COD(?:IGO)?\.?\s*(?:DE\s*)?PROVEEDOR\s*:?\s*([A-Z0-9\-]+)/) || [])[1] || '';
+  return { nombre: nombre.replace(/\s+,/g, ','), nif: nifB, tel, fax, email, direccion, cp, poblacion, provincia, contacto, codProv };
 }
 /* Cliente del pedido: por NIF, por lo aprendido o por el nombre (sin contar el nuestro) */
 function clienteDePedido(o) {
@@ -4690,20 +4710,20 @@ ACT.pedidoPDF = () => {
   });
 };
 function revisarPedidoPDF(o, archivo) {
-  let cid = clienteDePedido(o); const sem0 = semDePedido(o.fecha);
+  let cid = clienteDePedido(o); const sem0 = o.entrega ? lunesDe(o.entrega) : semDePedido(o.fecha); const diaE = o.entrega ? (new Date(o.entrega + 'T12:00').getDay() + 6) % 7 : -1;
   const semanas = [-1, 0, 1, 2, 3].map(i => addDays(lunesDe(hoy()), i * 7)); if (!semanas.includes(sem0)) semanas.push(sem0); semanas.sort();
   const prodOpts = sel => `<option value="">— No meter esta línea —</option>${opts('variedades').map(([id, n]) => `<option value="${esc(id)}" ${id === sel ? 'selected' : ''}>${esc(n)}</option>`).join('')}`;
   const L = o.lineas.map(l => ({ ...l, vid: productoDeLinea(l, cid), u: l.uds ?? (l.cajas != null ? l.cajas * udsPorCaja(l.desc) : '') }));
   const m = modal(`<h3>Revisa el pedido${o.numero ? ' nº ' + esc(o.numero) : ''}</h3><p class="sub">${esc(archivo || '')}${o.fecha ? ' · fecha del pedido ' + F.d(o.fecha) : ''}. Comprueba el cliente, la semana y el producto de cada línea. Lo que elijas para cada referencia se recuerda para los próximos pedidos de este cliente.</p>
-    <div class="grid2"><div class="fld"><label>Cliente</label><select data-pc><option value="">— Elige el cliente —</option>${o.emisor?.nombre || !cid ? `<option value="_nuevo" ${!cid ? 'selected' : ''}>➕ Cliente nuevo: darlo de alta ahora</option>` : ''}${opts('clientes').map(([id, n]) => `<option value="${esc(id)}" ${id === cid ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+    <div class="grid2"><div class="fld"><label>Cliente</label><select data-pc><option value="">— Elige el cliente —</option>${!cid ? `<option value="_nuevo" ${!cid ? 'selected' : ''}>➕ Cliente nuevo: darlo de alta ahora</option>` : ''}${opts('clientes').map(([id, n]) => `<option value="${esc(id)}" ${id === cid ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
     <div class="fld"><label>Semana del pedido</label><select data-ps>${semanas.map(s => `<option value="${s}" ${s === sem0 ? 'selected' : ''}>${esc(semTxt(s))}${s === lunesDe(hoy()) ? ' (esta semana)' : ''}</option>`).join('')}</select></div>
-    <div class="fld"><label>Día de entrega</label><select data-pd><option value="">Toda la semana (sin día fijo)</option>${DIAS6.map((d, i) => `<option value="${i}">${d}</option>`).join('')}</select></div></div>
+    <div class="fld"><label>Día de entrega</label><select data-pd><option value="">Toda la semana (sin día fijo)</option>${DIAS6.map((d, i) => `<option value="${i}" ${i === diaE ? 'selected' : ''}>${d}</option>`).join('')}</select>${o.entrega ? `<small class="sub">El pedido pide entrega el ${F.d(o.entrega)}</small>` : ''}</div></div>
     <div class="card pnuevo" ${cid ? 'hidden' : ''}><b>Datos del cliente nuevo</b> <span class="sub">(sacados del PDF; corrígelos si hace falta)</span><div class="grid2">
       <div class="fld"><label>Nombre</label><input data-pn value="${esc(o.emisor?.nombre || '')}"></div><div class="fld"><label>NIF / CIF</label><input data-pnif value="${esc(o.emisor?.nif || '')}"></div>
       <div class="fld"><label>Teléfono</label><input data-ptel value="${esc(o.emisor?.tel || '')}"></div><div class="fld"><label>Correo electrónico</label><input data-pmail value="${esc(o.emisor?.email || '')}"></div>
       <div class="fld"><label>Dirección</label><input data-pdir value="${esc(o.emisor?.direccion || '')}"></div><div class="fld"><label>Código postal</label><input data-pcp value="${esc(o.emisor?.cp || '')}"></div>
       <div class="fld"><label>Población</label><input data-ppob value="${esc(o.emisor?.poblacion || '')}"></div><div class="fld"><label>Provincia</label><input data-pprov value="${esc(o.emisor?.provincia || '')}"></div>
-      <div class="fld"><label>Fax</label><input data-pfax value="${esc(o.emisor?.fax || '')}"></div>
+      <div class="fld"><label>Fax</label><input data-pfax value="${esc(o.emisor?.fax || '')}"></div><div class="fld"><label>Persona de contacto</label><input data-pcon value="${esc(o.emisor?.contacto || '')}"></div><div class="fld"><label>Nuestro código de proveedor para ellos</label><input data-pcodp value="${esc(o.emisor?.codProv || '')}"></div>
       <div class="fld"><label>Código del cliente en FactuSol</label><input type="number" data-pnum></div></div></div>
     <div class="tblwrap"><table class="tbl"><thead><tr><th>Ref.</th><th>En el pedido</th><th class="num">Kilos</th><th class="num">Unid.</th><th class="num">Cajas</th><th>Producto nuestro</th><th class="num">Quesos / unidades a pedir</th><th>Ahora en la semana</th></tr></thead><tbody>
     ${L.map((l, i) => `<tr data-pl="${i}"><td>${esc(l.ref)}</td><td>${esc(l.desc)}</td><td class="num">${l.kilos != null ? F.n(l.kilos, 2) : ''}</td><td class="num">${l.uds != null ? F.n(l.uds) : ''}</td><td class="num">${l.cajas != null ? F.n(l.cajas) : ''}</td>
@@ -4716,7 +4736,7 @@ function revisarPedidoPDF(o, archivo) {
   m.querySelector('[data-ok]').onclick = async () => {
     const err = t => { m.querySelector('.perr').textContent = t; };
     let c = m.querySelector('[data-pc]').value; const s = m.querySelector('[data-ps]').value, dia = m.querySelector('[data-pd]').value; if (!c) return err('Elige el cliente del pedido');
-    const nuevo = c === '_nuevo' ? { nombre: m.querySelector('[data-pn]').value.trim(), nif: m.querySelector('[data-pnif]').value.trim().toUpperCase(), tel: m.querySelector('[data-ptel]').value.trim(), direccion: m.querySelector('[data-pdir]').value.trim(), email: m.querySelector('[data-pmail]').value.trim(), cp: m.querySelector('[data-pcp]').value.trim(), poblacion: m.querySelector('[data-ppob]').value.trim(), provincia: m.querySelector('[data-pprov]').value.trim(), fax: m.querySelector('[data-pfax]').value.trim(), numero: m.querySelector('[data-pnum]').value } : null;
+    const nuevo = c === '_nuevo' ? { nombre: m.querySelector('[data-pn]').value.trim(), nif: m.querySelector('[data-pnif]').value.trim().toUpperCase(), tel: m.querySelector('[data-ptel]').value.trim(), direccion: m.querySelector('[data-pdir]').value.trim(), email: m.querySelector('[data-pmail]').value.trim(), cp: m.querySelector('[data-pcp]').value.trim(), poblacion: m.querySelector('[data-ppob]').value.trim(), provincia: m.querySelector('[data-pprov]').value.trim(), fax: m.querySelector('[data-pfax]').value.trim(), contacto: m.querySelector('[data-pcon]').value.trim(), codProveedor: m.querySelector('[data-pcodp]').value.trim(), numero: m.querySelector('[data-pnum]').value } : null;
     if (nuevo) { if (!nuevo.nombre) return err('Pon el nombre del cliente nuevo'); const dup = [...D.clientes.values()].find(x => x.nombre.trim().toUpperCase() === nuevo.nombre.toUpperCase()); if (dup) return err(`Ya hay un cliente «${dup.nombre}»: elígelo en la lista`); }
     const filas = [...m.querySelectorAll('tr[data-pl]')].map((tr, i) => ({ ...L[i], vid: tr.querySelector('[data-pv]').value, u: Math.round(num(tr.querySelector('[data-pu]').value)) }));
     const meter = filas.filter(f => f.vid && f.u > 0); if (!meter.length) return err('No hay ninguna línea para meter: elige el producto y las unidades');
