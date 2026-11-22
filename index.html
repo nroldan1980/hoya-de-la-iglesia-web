@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta name="app-version" content="aa3191f43d"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#233a2e"><link rel="apple-touch-icon" href="icono-192.png"><script src="firebase-config.js"></script><script src="plataforma.js"></script>
+<meta name="app-version" content="dccd023443"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#233a2e"><link rel="apple-touch-icon" href="icono-192.png"><script src="firebase-config.js"></script><script src="plataforma.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hoya de la Iglesia · Gestión de quesería</title>
@@ -4042,12 +4042,13 @@ Desde la ficha puedes pesar, corregir (José y administradores) e imprimir de nu
 En **Cámaras** ves qué lotes hay en cada sitio. Con **⇄ Pasar a otra cámara** mueves uno o varios lotes (puedes escanearlos) de la cámara de maduración a la de frío u otra. Por defecto propone la cámara de frío y todos los quesos del lote.
 Las cámaras **no llevan registro de temperatura**, así que la app no da alarmas de temperatura ni de humedad.
 También se apuntan volteos, lavados y revisiones.` },
-  { id: 'pedidopdf', t: 'Meter un pedido que llega en PDF por correo', p: ['pdf', 'correo', 'email', 'pedido', 'charcuval', 'adjunto', 'subir'], x: `
+  { id: 'pedidopdf', t: 'Meter un pedido que llega en PDF por correo', p: ['pdf', 'correo', 'email', 'pedido', 'charcuval', 'jacorba', 'cala figuera', 'adjunto', 'subir', 'cajas'], x: `
 1. Guarda el PDF del correo en el móvil o en el ordenador (no hace falta imprimir nada).
 2. En **Pedidos de la semana** pulsa **📥 Meter pedido en PDF** y elige el archivo.
 3. La app lee el número, la fecha y las líneas, y reconoce el **cliente** (por su NIF o su nombre) y **nuestro producto** de cada línea.
 4. Revisa: cliente, **semana** (si el pedido es de sábado o domingo propone la semana siguiente), **día de entrega** si viene un día fijo, y los quesos de cada línea. Las líneas que no son nuestras se dejan en «No meter».
 5. Pulsa **Meter en los pedidos**. Queda como confirmado por el cliente, con el número de pedido en la nota.
+Si el pedido viene en **cajas** y la descripción dice cuántos van por caja (por ejemplo «2U/C»), propone los quesos ya multiplicados. Compruébalo siempre en «Quesos / unidades a pedir».
 La primera vez con cada cliente puede que tengas que elegir algún producto; la app **aprende** sus referencias y la próxima vez lo pone solo.` },
   { id: 'pedidos', t: 'Pedidos de la semana (clientes)', p: ['pedido', 'cliente', 'semana', 'unidades', 'mandado', 'preparado', 'confirmado', 'nota'], x: `
 En **Pedidos de la semana → Pedidos por cliente** cada fila es un cliente y cada columna una semana. Elige el producto arriba.
@@ -4582,6 +4583,7 @@ const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.mi
 const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 const esNumPed = s => /^\d{1,6}(?:[.,]\d{1,3})?$/.test(String(s).trim());
 const numPed = s => num(String(s).trim().replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+const COL_FMT = [['uds', /^(UNIDADES|UNIDAD|UNID\.?|UDS?\.?|U\.?|PIEZAS?)$/], ['cajas', /^(CAJAS?|CJ\.?|BULTOS?)$/], ['kilos', /^(KILOS?|KGS?\.?)$/]];
 const COL_NUM = [['kilos', /^(KILOS?|KG|PESO)$/], ['uds', /^(UNID\.?|UNIDADES|UDS\.?|UD\.?|CANT\.?|CANTIDAD|PIEZAS)$/], ['cajas', /^(CAJAS?|BULTOS?)$/]];
 /* Filas de texto de cada página del PDF, de arriba abajo: [{ y, items: [{ x, w, s }] }] */
 async function filasPDF(buf) {
@@ -4613,11 +4615,16 @@ function analizarPedidoPDF(filas) {
   const cols = []; filas[hi].items.forEach(i => { const w = sinAcET(i.s); const c = COL_NUM.find(([, re]) => re.test(w)); if (c) cols.push({ k: c[0], cx: i.x + i.w / 2 }); });
   for (const f of filas.slice(hi + 1)) {
     const ws = f.items.map(i => sinAcET(i.s)).join(' '); if (/PAGINAS?\s+\d|^TOTAL|SUMA|BASE IMPONIBLE|ENVIAR NOTIFICACION|OBSERVACIONES GENERALES/.test(ws)) break;
-    const its = f.items.slice(); const nums = []; while (its.length && esNumPed(its[its.length - 1].s)) nums.unshift(its.pop());
+    const its = f.items.slice();
+    // Columna «Formato» al final (p. ej. «8.00 Unidades», «10.00 Cajas»): la palabra dice qué es el número
+    let fmt = null; if (its.length > 1 && esNumPed(its[its.length - 2].s)) { const w = sinAcET(its[its.length - 1].s); const c = COL_FMT.find(([, re]) => re.test(w)); if (c) { fmt = c[0]; its.pop(); } }
+    const nums = []; while (its.length && esNumPed(its[its.length - 1].s)) nums.unshift(its.pop());
     if (!nums.length || !its.length) continue;
     let ref = ''; if (its.length > 1 && /^[A-Z0-9][A-Z0-9\-.\/]*$/i.test(its[0].s) && /\d/.test(its[0].s)) ref = its.shift().s;
+    if (ref && its.length > 1 && its[0].s === ref) its.shift(); // «Ref.» y «Ref. ajena» iguales
     const desc = its.map(i => i.s).join(' ').replace(/\s+/g, ' ').trim(); if (!/[A-Za-z]{3}/.test(desc)) continue;
     const l = { ref, desc };
+    if (fmt) { const n = nums.pop(); l[fmt] = numPed(n.s); }
     for (const n of nums) { const cx = n.x + n.w / 2; const c = cols.slice().sort((a, b) => Math.abs(a.cx - cx) - Math.abs(b.cx - cx))[0]; if (c && l[c.k] == null) l[c.k] = numPed(n.s); else if (!c && l.uds == null) l.uds = numPed(n.s); }
     o.lineas.push(l);
   }
@@ -4644,6 +4651,8 @@ function productoDeLinea(l, cid) {
     const s = ws.filter(w => pal.has(w)).length / ws.length; if (s >= 0.5 && (!best || s > best.s)) best = { s, id: v.id }; }
   return best?.id || '';
 }
+/* «2U/C», «6 UDS/CAJA» en la descripción: unidades por caja (si no lo dice, 1) */
+const udsPorCaja = d => { const m = sinAcET(d).match(/\b(\d{1,3})\s*(?:U|UD|UDS|UNID|UNIDADES)\.?\s*\/\s*(?:C|CJ|CAJA)\b/); return m ? +m[1] : 1; };
 const semDePedido = f => { if (!f) return lunesDe(hoy()); const d = new Date(f + 'T12:00').getDay(); return lunesDe(d === 0 || d === 6 ? addDays(f, 2) : f); };
 /* Botón «Pedido en PDF»: elegir el archivo → revisar → meter en la semana */
 ACT.pedidoPDF = () => {
@@ -4660,7 +4669,7 @@ function revisarPedidoPDF(o, archivo) {
   let cid = clienteDePedido(o); const sem0 = semDePedido(o.fecha);
   const semanas = [-1, 0, 1, 2, 3].map(i => addDays(lunesDe(hoy()), i * 7)); if (!semanas.includes(sem0)) semanas.push(sem0); semanas.sort();
   const prodOpts = sel => `<option value="">— No meter esta línea —</option>${opts('variedades').map(([id, n]) => `<option value="${esc(id)}" ${id === sel ? 'selected' : ''}>${esc(n)}</option>`).join('')}`;
-  const L = o.lineas.map(l => ({ ...l, vid: productoDeLinea(l, cid), u: l.uds ?? l.cajas ?? '' }));
+  const L = o.lineas.map(l => ({ ...l, vid: productoDeLinea(l, cid), u: l.uds ?? (l.cajas != null ? l.cajas * udsPorCaja(l.desc) : '') }));
   const m = modal(`<h3>Revisa el pedido${o.numero ? ' nº ' + esc(o.numero) : ''}</h3><p class="sub">${esc(archivo || '')}${o.fecha ? ' · fecha del pedido ' + F.d(o.fecha) : ''}. Comprueba el cliente, la semana y el producto de cada línea. Lo que elijas para cada referencia se recuerda para los próximos pedidos de este cliente.</p>
     <div class="grid2"><div class="fld"><label>Cliente</label><select data-pc><option value="">— Elige el cliente —</option>${opts('clientes').map(([id, n]) => `<option value="${esc(id)}" ${id === cid ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
     <div class="fld"><label>Semana del pedido</label><select data-ps>${semanas.map(s => `<option value="${s}" ${s === sem0 ? 'selected' : ''}>${esc(semTxt(s))}${s === lunesDe(hoy()) ? ' (esta semana)' : ''}</option>`).join('')}</select></div>
