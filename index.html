@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta name="app-version" content="dccd023443"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#233a2e"><link rel="apple-touch-icon" href="icono-192.png"><script src="firebase-config.js"></script><script src="plataforma.js"></script>
+<meta name="app-version" content="e8bb6bc8b9"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#233a2e"><link rel="apple-touch-icon" href="icono-192.png"><script src="firebase-config.js"></script><script src="plataforma.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hoya de la Iglesia · Gestión de quesería</title>
@@ -1800,7 +1800,7 @@ ACT.editCliente = id => {
   const c = id ? D.clientes.get(id) : null;
   formModal({
     title: c ? 'Editar cliente' : 'Nuevo cliente', values: c || { tarifas: [] },
-    fields: [{ k: 'nombre', l: 'Nombre', req: 1, full: 1 }, { k: 'contacto', l: 'Persona de contacto' }, { k: 'tel', l: 'Teléfono', t: 'tel' }, { k: 'nif', l: 'NIF / CIF', help: 'Sirve para reconocer al cliente en sus pedidos en PDF.' }, { k: 'numero', l: 'Código del cliente en FactuSol', t: 'number', help: 'El número de cliente de FactuSol, para volcar los albaranes.' }, ...(c ? [{ k: 'inactivo', l: 'Inactivo (ya no compra)', t: 'check' }] : [])],
+    fields: [{ k: 'nombre', l: 'Nombre', req: 1, full: 1 }, { k: 'contacto', l: 'Persona de contacto' }, { k: 'tel', l: 'Teléfono', t: 'tel' }, { k: 'nif', l: 'NIF / CIF', help: 'Sirve para reconocer al cliente en sus pedidos en PDF.' }, { k: 'direccion', l: 'Dirección', full: 1 }, { k: 'numero', l: 'Código del cliente en FactuSol', t: 'number', help: 'El número de cliente de FactuSol, para volcar los albaranes.' }, ...(c ? [{ k: 'inactivo', l: 'Inactivo (ya no compra)', t: 'check' }] : [])],
     async onSubmit(v) { v.tarifas = (v.tarifas || []).filter(t => t.variedadId); if ([...D.clientes.values()].some(x => x.id !== id && x.nombre.trim().toUpperCase() === v.nombre.trim().toUpperCase())) throw new Error('Ya hay un cliente con ese nombre'); v.nombre = v.nombre.trim(); const cid = id || newId('K'); await put('clientes', cid, v, id ? 'editar cliente' : 'cliente', v.nombre); toast('Cliente guardado'); if (!id) location.hash = 'cli-' + cid; }
   });
 };
@@ -4049,6 +4049,7 @@ También se apuntan volteos, lavados y revisiones.` },
 4. Revisa: cliente, **semana** (si el pedido es de sábado o domingo propone la semana siguiente), **día de entrega** si viene un día fijo, y los quesos de cada línea. Las líneas que no son nuestras se dejan en «No meter».
 5. Pulsa **Meter en los pedidos**. Queda como confirmado por el cliente, con el número de pedido en la nota.
 Si el pedido viene en **cajas** y la descripción dice cuántos van por caja (por ejemplo «2U/C»), propone los quesos ya multiplicados. Compruébalo siempre en «Quesos / unidades a pedir».
+**Cliente nuevo:** si es su primer pedido, la app propone **➕ Cliente nuevo** con su nombre, NIF, dirección y teléfono sacados del PDF. Revísalos (y pon su código de FactuSol si lo tienes) y al meter el pedido queda dado de alta.
 La primera vez con cada cliente puede que tengas que elegir algún producto; la app **aprende** sus referencias y la próxima vez lo pone solo.` },
   { id: 'pedidos', t: 'Pedidos de la semana (clientes)', p: ['pedido', 'cliente', 'semana', 'unidades', 'mandado', 'preparado', 'confirmado', 'nota'], x: `
 En **Pedidos de la semana → Pedidos por cliente** cada fila es un cliente y cada columna una semana. Elige el producto arriba.
@@ -4609,6 +4610,7 @@ function analizarPedidoPDF(filas) {
   const mF = T.match(/FECHA[^0-9\n]{0,20}(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/) || T.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
   if (mF) o.fecha = `${anio4(mF[3])}-${String(mF[2]).padStart(2, '0')}-${String(mF[1]).padStart(2, '0')}`;
   o.nifs = [...new Set(T.match(/\b[A-HJ-NP-SUVW]\d{7}[0-9A-J]\b|\b\d{8}[A-Z]\b/g) || [])];
+  o.emisor = emisorPedido(filas, o.nifs);
   // Cabecera de la tabla: la fila con «Descripción» y alguna columna de cantidad
   const hi = filas.findIndex(f => { const ws = f.items.map(i => sinAcET(i.s)); return ws.some(w => /^DESCRIP|^ARTICULO|^PRODUCTO/.test(w)) && ws.some(w => COL_NUM.some(([, re]) => re.test(w))); });
   if (hi < 0) return o;
@@ -4629,6 +4631,22 @@ function analizarPedidoPDF(filas) {
     o.lineas.push(l);
   }
   return o;
+}
+/* Nombre, NIF, dirección y teléfono de quien manda el pedido (para darlo de alta si es nuevo):
+   el bloque de texto alrededor de su NIF (el que no es el nuestro). */
+const NIF_PROPIO = 'F97276620';
+function emisorPedido(filas, nifs) {
+  const propio = [NIF_PROPIO, ...(cfg().nif ? [sinAcET(cfg().nif).replace(/[^A-Z0-9]/g, '')] : [])];
+  const nif = nifs.find(n => !propio.includes(n)); if (!nif) return null;
+  const fi = filas.findIndex(f => f.items.some(i => sinAcET(i.s).replace(/[^A-Z0-9]/g, '') === nif)); if (fi < 0) return { nif };
+  const it = filas[fi].items.find(i => sinAcET(i.s).replace(/[^A-Z0-9]/g, '') === nif); const x0 = it.x - 90, x1 = it.x + it.w + 160;
+  const bloque = f => { const grupos = []; for (const i of f.items) { const g = grupos[grupos.length - 1]; if (g && i.x - (g[g.length - 1].x + g[g.length - 1].w) < 40) g.push(i); else grupos.push([i]); }
+    const g = grupos.find(g => g[0].x < x1 && g[g.length - 1].x + g[g.length - 1].w > x0); return g ? g.map(i => i.s).join(' ').trim() : ''; };
+  const pag = Math.floor(filas[fi].y / 10000); const cerca = (j) => filas[j] && Math.floor(filas[j].y / 10000) === pag && Math.abs(filas[j].y - filas[fi].y) < 70;
+  let nombre = ''; for (let j = fi - 1; j >= 0 && cerca(j) && !nombre; j--) { const b = bloque(filas[j]); if (/[A-Za-z]{3}/.test(b) && !/^(TEL|FAX|CIF|NIF|PEDIDO)/i.test(b)) nombre = b; }
+  const abajo = []; for (let j = fi + 1; j < filas.length && cerca(j) && abajo.length < 4; j++) { const b = bloque(filas[j]); if (b && !/^(REF\.?|DESCRIP)/i.test(b)) abajo.push(b); }
+  const tel = (abajo.find(b => /TEL/i.test(b)) || '').replace(/.*TEL[^0-9+]*/i, '').trim();
+  return { nombre: nombre.replace(/\s+,/g, ','), nif, tel, direccion: abajo.filter(b => !/TEL|FAX|MAIL|@/i.test(b)).join(', ') };
 }
 /* Cliente del pedido: por NIF, por lo aprendido o por el nombre (sin contar el nuestro) */
 function clienteDePedido(o) {
@@ -4671,26 +4689,33 @@ function revisarPedidoPDF(o, archivo) {
   const prodOpts = sel => `<option value="">— No meter esta línea —</option>${opts('variedades').map(([id, n]) => `<option value="${esc(id)}" ${id === sel ? 'selected' : ''}>${esc(n)}</option>`).join('')}`;
   const L = o.lineas.map(l => ({ ...l, vid: productoDeLinea(l, cid), u: l.uds ?? (l.cajas != null ? l.cajas * udsPorCaja(l.desc) : '') }));
   const m = modal(`<h3>Revisa el pedido${o.numero ? ' nº ' + esc(o.numero) : ''}</h3><p class="sub">${esc(archivo || '')}${o.fecha ? ' · fecha del pedido ' + F.d(o.fecha) : ''}. Comprueba el cliente, la semana y el producto de cada línea. Lo que elijas para cada referencia se recuerda para los próximos pedidos de este cliente.</p>
-    <div class="grid2"><div class="fld"><label>Cliente</label><select data-pc><option value="">— Elige el cliente —</option>${opts('clientes').map(([id, n]) => `<option value="${esc(id)}" ${id === cid ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+    <div class="grid2"><div class="fld"><label>Cliente</label><select data-pc><option value="">— Elige el cliente —</option>${o.emisor?.nombre || !cid ? `<option value="_nuevo" ${!cid ? 'selected' : ''}>➕ Cliente nuevo: darlo de alta ahora</option>` : ''}${opts('clientes').map(([id, n]) => `<option value="${esc(id)}" ${id === cid ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
     <div class="fld"><label>Semana del pedido</label><select data-ps>${semanas.map(s => `<option value="${s}" ${s === sem0 ? 'selected' : ''}>${esc(semTxt(s))}${s === lunesDe(hoy()) ? ' (esta semana)' : ''}</option>`).join('')}</select></div>
     <div class="fld"><label>Día de entrega</label><select data-pd><option value="">Toda la semana (sin día fijo)</option>${DIAS6.map((d, i) => `<option value="${i}">${d}</option>`).join('')}</select></div></div>
+    <div class="card pnuevo" ${cid ? 'hidden' : ''}><b>Datos del cliente nuevo</b> <span class="sub">(sacados del PDF; corrígelos si hace falta)</span><div class="grid2">
+      <div class="fld"><label>Nombre</label><input data-pn value="${esc(o.emisor?.nombre || '')}"></div><div class="fld"><label>NIF / CIF</label><input data-pnif value="${esc(o.emisor?.nif || '')}"></div>
+      <div class="fld"><label>Teléfono</label><input data-ptel value="${esc(o.emisor?.tel || '')}"></div><div class="fld"><label>Dirección</label><input data-pdir value="${esc(o.emisor?.direccion || '')}"></div>
+      <div class="fld"><label>Código del cliente en FactuSol</label><input type="number" data-pnum></div></div></div>
     <div class="tblwrap"><table class="tbl"><thead><tr><th>Ref.</th><th>En el pedido</th><th class="num">Kilos</th><th class="num">Unid.</th><th class="num">Cajas</th><th>Producto nuestro</th><th class="num">Quesos / unidades a pedir</th><th>Ahora en la semana</th></tr></thead><tbody>
     ${L.map((l, i) => `<tr data-pl="${i}"><td>${esc(l.ref)}</td><td>${esc(l.desc)}</td><td class="num">${l.kilos != null ? F.n(l.kilos, 2) : ''}</td><td class="num">${l.uds != null ? F.n(l.uds) : ''}</td><td class="num">${l.cajas != null ? F.n(l.cajas) : ''}</td>
       <td><select data-pv>${prodOpts(l.vid)}</select></td><td class="num"><input type="number" min="0" step="1" inputmode="numeric" data-pu value="${esc(l.u)}" style="width:90px"></td><td class="sub" data-pya></td></tr>`).join('')}</tbody></table></div>
     <p class="perr" style="color:var(--bad)"></p><div class="acts"><button type="button" class="btn" data-cancel>Cancelar</button><button type="button" class="btn primary" data-ok>Meter en los pedidos</button></div>`, { wide: 1 });
-  const ya = () => { const c = m.querySelector('[data-pc]').value, s = m.querySelector('[data-ps]').value; m.querySelectorAll('tr[data-pl]').forEach(tr => { const v = tr.querySelector('[data-pv]').value; const x = v && c ? celda(v, s, c) : {}; tr.querySelector('[data-pya]').textContent = num(x.u) ? `ya hay ${F.n(x.u)}${x.prep ? ' (pesados ' + F.n(x.prep.piezas) + ')' : ''}: se cambiará` : ''; }); };
+  const ya = () => { m.querySelector('.pnuevo').hidden = m.querySelector('[data-pc]').value !== '_nuevo'; const c0 = m.querySelector('[data-pc]').value; const c = c0 === '_nuevo' ? '' : c0, s = m.querySelector('[data-ps]').value; m.querySelectorAll('tr[data-pl]').forEach(tr => { const v = tr.querySelector('[data-pv]').value; const x = v && c ? celda(v, s, c) : {}; tr.querySelector('[data-pya]').textContent = num(x.u) ? `ya hay ${F.n(x.u)}${x.prep ? ' (pesados ' + F.n(x.prep.piezas) + ')' : ''}: se cambiará` : ''; }); };
   m.querySelector('[data-pc]').addEventListener('change', e => { cid = e.target.value; m.querySelectorAll('tr[data-pl]').forEach((tr, i) => { const v = productoDeLinea(L[i], cid); if (v) tr.querySelector('[data-pv]').value = v; }); ya(); });
   m.addEventListener('change', e => { if (e.target.matches('[data-ps],[data-pv]')) ya(); }); ya();
   m.querySelector('[data-cancel]').onclick = () => m.close();
   m.querySelector('[data-ok]').onclick = async () => {
     const err = t => { m.querySelector('.perr').textContent = t; };
-    const c = m.querySelector('[data-pc]').value, s = m.querySelector('[data-ps]').value, dia = m.querySelector('[data-pd]').value; if (!c) return err('Elige el cliente del pedido');
+    let c = m.querySelector('[data-pc]').value; const s = m.querySelector('[data-ps]').value, dia = m.querySelector('[data-pd]').value; if (!c) return err('Elige el cliente del pedido');
+    const nuevo = c === '_nuevo' ? { nombre: m.querySelector('[data-pn]').value.trim(), nif: m.querySelector('[data-pnif]').value.trim().toUpperCase(), tel: m.querySelector('[data-ptel]').value.trim(), direccion: m.querySelector('[data-pdir]').value.trim(), numero: m.querySelector('[data-pnum]').value } : null;
+    if (nuevo) { if (!nuevo.nombre) return err('Pon el nombre del cliente nuevo'); const dup = [...D.clientes.values()].find(x => x.nombre.trim().toUpperCase() === nuevo.nombre.toUpperCase()); if (dup) return err(`Ya hay un cliente «${dup.nombre}»: elígelo en la lista`); }
     const filas = [...m.querySelectorAll('tr[data-pl]')].map((tr, i) => ({ ...L[i], vid: tr.querySelector('[data-pv]').value, u: Math.round(num(tr.querySelector('[data-pu]').value)) }));
     const meter = filas.filter(f => f.vid && f.u > 0); if (!meter.length) return err('No hay ninguna línea para meter: elige el producto y las unidades');
     const porVid = {}; meter.forEach(f => { porVid[f.vid] = (porVid[f.vid] || 0) + f.u; });
     for (const [vid, u] of Object.entries(porVid)) { const x = celda(vid, s, c); if (x.prep && u < num(x.prep.piezas)) return err(`${D.variedades.get(vid).nombre}: ya hay ${x.prep.piezas} pesados, el pedido no puede ser menor`); }
     m.querySelector('[data-ok]').disabled = true;
     try {
+      if (nuevo) { c = newId('K'); const { numero, ...rest } = nuevo; await put('clientes', c, { ...rest, ...(numero ? { numero: num(numero) } : {}), tarifas: [] }, 'cliente', nuevo.nombre + ' (desde su pedido en PDF)'); }
       const nota = `Pedido${o.numero ? ' nº ' + o.numero : ''} (PDF)`;
       for (const [vid, u] of Object.entries(porVid)) {
         const id = planId(vid, s); const doc = D.plansem.get(id) || { variedadId: vid, semana: s, c: {} }; const cc = { ...(doc.c || {}) }; const { dias: _d, sinDia: _s, ...prev } = cc[c] || {};
@@ -4699,10 +4724,10 @@ function revisarPedidoPDF(o, archivo) {
         await put('plansem', id, { ...doc, variedadId: vid, semana: s, c: cc }, 'pedido PDF', `${D.clientes.get(c)?.nombre}: ${u} ${D.variedades.get(vid)?.nombre}`);
       }
       // Aprender: NIF del cliente y qué producto es cada referencia suya
-      const cl = D.clientes.get(c); const ap = { ...(cl.refsPedido || {}) }; filas.forEach(f => { const k = f.ref || 'd:' + sinAcET(f.desc).replace(/[^A-Z0-9]+/g, ' ').trim(); if (f.vid) ap[k] = f.vid; });
-      const propios = ['F97276620', ...(cfg().nif ? [sinAcET(cfg().nif).replace(/[^A-Z0-9]/g, '')] : [])]; const nifCli = !cl.nif && o.nifs.filter(n => !propios.includes(n)).length === 1 ? o.nifs.filter(n => !propios.includes(n))[0] : '';
+      const cl = D.clientes.get(c) || { ...nuevo, numero: nuevo?.numero ? num(nuevo.numero) : undefined, tarifas: [] }; const ap = { ...(cl.refsPedido || {}) }; filas.forEach(f => { const k = f.ref || 'd:' + sinAcET(f.desc).replace(/[^A-Z0-9]+/g, ' ').trim(); if (f.vid) ap[k] = f.vid; });
+      const propios = [NIF_PROPIO, ...(cfg().nif ? [sinAcET(cfg().nif).replace(/[^A-Z0-9]/g, '')] : [])]; const nifCli = !cl.nif && o.nifs.filter(n => !propios.includes(n)).length === 1 ? o.nifs.filter(n => !propios.includes(n))[0] : '';
       try { await put('clientes', c, { ...cl, refsPedido: ap, ...(nifCli ? { nif: nifCli } : {}) }, 'referencias del cliente', cl.nombre); } catch { }
-      m.close(); TAB.planSem = addDays(s, -7); render(); toast(`Pedido metido: ${Object.keys(porVid).length} producto${Object.keys(porVid).length > 1 ? 's' : ''} para ${cl.nombre}`);
+      m.close(); TAB.planSem = addDays(s, -7); render(); toast(`${nuevo ? 'Cliente dado de alta y pedido' : 'Pedido'} metido: ${Object.keys(porVid).length} producto${Object.keys(porVid).length > 1 ? 's' : ''} para ${cl.nombre}`);
     } catch (e) { err(e.message || String(e)); m.querySelector('[data-ok]').disabled = false; }
   };
 }
