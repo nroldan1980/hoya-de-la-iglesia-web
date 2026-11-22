@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta name="app-version" content="e8bb6bc8b9"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#233a2e"><link rel="apple-touch-icon" href="icono-192.png"><script src="firebase-config.js"></script><script src="plataforma.js"></script>
+<meta name="app-version" content="58c553bbbc"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#233a2e"><link rel="apple-touch-icon" href="icono-192.png"><script src="firebase-config.js"></script><script src="plataforma.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hoya de la Iglesia · Gestión de quesería</title>
@@ -4721,6 +4721,7 @@ function revisarPedidoPDF(o, archivo) {
         const id = planId(vid, s); const doc = D.plansem.get(id) || { variedadId: vid, semana: s, c: {} }; const cc = { ...(doc.c || {}) }; const { dias: _d, sinDia: _s, ...prev } = cc[c] || {};
         const dias = dia !== '' ? DIAS6.map((_, i) => i === +dia ? u : 0) : null;
         cc[c] = { ...prev, u, est: prev.est || '', conf: true, nota: prev.nota && !prev.nota.includes(nota) ? prev.nota + ' · ' + nota : nota, ...(dias ? { dias, sinDia: 0 } : {}) };
+        const lis = D.plansem.get(vid + '_clientes')?.lista || []; if (!lis.includes(c)) await put('plansem', vid + '_clientes', { variedadId: vid, lista: [...lis, c] }, 'pedidos semanales', 'añadir cliente');
         await put('plansem', id, { ...doc, variedadId: vid, semana: s, c: cc }, 'pedido PDF', `${D.clientes.get(c)?.nombre}: ${u} ${D.variedades.get(vid)?.nombre}`);
       }
       // Aprender: NIF del cliente y qué producto es cada referencia suya
